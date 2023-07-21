@@ -16,3 +16,5 @@
 # Virtual environments
 venv/
 .venv/
+dest/
+.dest/
