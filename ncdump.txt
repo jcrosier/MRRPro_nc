@@ -1,0 +1,308 @@
+NetCDF Global Attributes:
+	Conventions:'CF/Radial'
+	version:'1.3'
+	title:'METEK MRR Pro 1.2.5 Data'
+	institution:''
+	references:''
+	source:''
+	history:''
+	comment:''
+	instrument_name:'METEK MRR Pro 1.2.5, ID: MRRPro91, METEK Serial Number:  0514068586, Software:  MRR Pro 1.2.5'
+	site_name:''
+	field_names:'Za,Z,Zea,Ze,RR,LWC,PIA,VEL,WIDTH,SNR,spectrum_reflectivity,N'
+
+NetCDF dimension information:	
+	Name:time
+		size:120
+		type:dtype('float64')
+		standard name:'time'
+		long_name:'time_in_seconds_since_volume_start'
+		units:'seconds since 1970-01-01T00:00:00Z'
+		calendar:'standard'
+	Name:range
+		size:128
+		type:dtype('float32')
+		standard name:'projection_range_coordinate'
+		long_name:'range_to_measurement_volume'
+		units:'meters'
+		spacing_is_constant:'true'
+		meters_to_center_of_first_gate:50.0
+		meters_between_gates:50.0
+		axis:'radial_range_coordinate'
+	Name:sweep
+		size:1
+		WARNING: sweep does not contain variable attributes
+	Name:string_length
+		size:128
+		WARNING: string_length does not contain variable attributes
+	Name:n_spectra
+		size:128
+		WARNING: n_spectra does not contain variable attributes
+	Name:spectrum_n_samples
+		size:64
+		WARNING: spectrum_n_samples does not contain variable attributes
+
+NetCDF variable information:	
+	Name:volume_number
+		dimensions:()
+		size:1
+		type:dtype('int32')
+	Name:time_coverage_start
+		dimensions:('string_length',)
+		size:128
+		type:dtype('S1')
+	Name:time_coverage_end
+		dimensions:('string_length',)
+		size:128
+		type:dtype('S1')
+	Name:time_reference
+		dimensions:('string_length',)
+		size:128
+		type:dtype('S1')
+	Name:instrument_type
+		dimensions:('string_length',)
+		size:128
+		type:dtype('S1')
+	Name:transfer_function
+		dimensions:('range',)
+		size:128
+		type:dtype('float64')
+	Name:calibration_constant
+		dimensions:()
+		size:1
+		type:dtype('float64')
+	Name:latitude
+		dimensions:()
+		size:1
+		type:dtype('float64')
+		units:'degrees_north'
+	Name:longitude
+		dimensions:()
+		size:1
+		type:dtype('float64')
+		units:'degrees_east'
+	Name:altitude
+		dimensions:()
+		size:1
+		type:dtype('float64')
+		units:'meters'
+	Name:doppler_shift_spectrum
+		dimensions:()
+		size:1
+		type:dtype('float64')
+	Name:sweep_number
+		dimensions:('sweep',)
+		size:1
+		type:dtype('int32')
+	Name:sweep_mode
+		dimensions:('sweep', 'string_length')
+		size:128
+		type:dtype('S1')
+	Name:fixed_angle
+		dimensions:('sweep',)
+		size:1
+		type:dtype('float32')
+	Name:sweep_start_ray_index
+		dimensions:('sweep',)
+		size:1
+		type:dtype('int32')
+	Name:sweep_end_ray_index
+		dimensions:('sweep',)
+		size:1
+		type:dtype('int32')
+	Name:elevation
+		dimensions:('time',)
+		size:120
+		type:dtype('float32')
+		standard name:'ray_elevation_angle'
+		long_name:'elevation_angle_from_horizontal_plane'
+		units:'degrees'
+		axis:'radial_elevation_coordinate'
+	Name:azimuth
+		dimensions:('time',)
+		size:120
+		type:dtype('float32')
+		standard name:'ray_azimuth_angle'
+		long_name:'azimuth_angle_from_true_north'
+		units:'degrees'
+		axis:'radial_azimuth_coordinate'
+	Name:Za
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float32')
+		standard_name:'log_attenuated_reflectivity'
+		long_name:''
+		units:'dBZ'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:Z
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'log_reflectivity'
+		long_name:''
+		units:'dBZ'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:Zea
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'attenuated_equivalent_reflectivity_factor'
+		long_name:''
+		units:'dBZ'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:Ze
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'equivalent_reflectivity_factor'
+		long_name:''
+		units:'dBZ'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:RR
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'rainfall_rate'
+		long_name:''
+		units:'mm h-1'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:LWC
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'mass_concentration_of_liquid_water_in_air'
+		long_name:''
+		units:'g m-3'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:PIA
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'path_integrated_rain_attenuation'
+		long_name:''
+		units:'dB'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:VEL
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float32')
+		standard_name:'radial_velocity_of_scatterers_towards_instrument'
+		long_name:''
+		units:'m s-1'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'true'
+		fold_limit_lower:-0.0
+		fold_limit_upper:11.890331
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:WIDTH
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'doppler_spectrum_width'
+		long_name:''
+		units:'m/s'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:ML
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float64')
+		standard_name:'melting_layer'
+		long_name:''
+		units:''
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:SNR
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('float32')
+		standard_name:'signal_to_noise_ratio'
+		long_name:''
+		units:'dB'
+		_FillValue:nan
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'false'
+	Name:index_spectra
+		dimensions:('time', 'range')
+		size:15360
+		type:dtype('int32')
+		standard_name:'index variable spectra'
+		long_name:''
+		units:''
+		_FillValue:-2147483648
+		coordinates:'elevation azimuth range'
+		field_folds:'false'
+		fold_limit_lower:0.0
+		fold_limit_upper:0.0
+		thresholding_xml:''
+		legend_xml:''
+		is_discreet:'true'
