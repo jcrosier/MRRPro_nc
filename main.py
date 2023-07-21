@@ -3,15 +3,11 @@ import netCDF4 as nC
 from cftime import num2date
 import matplotlib.pyplot as plt
 import sys
-import socket
 import numpy as np
 
 # import datetime as dt
 
 run_mode = True
-home_PC = "DESKTOP-Q1QVI8T"
-uni_laptop = "DESKTOP-ERDPCCT"
-holo_PC = "L-U-AS1002682"
 
 nc_file_ext = ".nc"
 time_dimension = "time"
@@ -20,6 +16,9 @@ title_att_name = "title"
 vars_att_name = "field_names"
 title_att_value = "METEK MRR Pro"
 output_extension = "_merged"
+export_field_list = ["time", "range", "Z"]
+export_folder = ".\\dest"
+export_temp_name = "temp_"
 folder_length_y = 4
 folder_length_ym = 6
 folder_length_ymd = 8
@@ -73,7 +72,7 @@ def ncdump(nc_fid, f_out, opt, verb=True):
     opt :   variable
         A variable with value 1 (output data to file) or 0 (no output to file)
     verb : Boolean
-        whether or not nc_attrs, nc_dims, and nc_vars are printed
+        whether nc_attrs, nc_dims, and nc_vars are printed
 
     Returns
     -------
@@ -544,8 +543,8 @@ def export_fields(variable_list, group_list, output_fold, output_file):
 
     Parameters
     ----------
-    variable_list : string
-        names of the fields to export
+    variable_list : list
+        string containing names of the fields to export
     group_list : python list
         names of folders to search for source datafiles
     output_fold   : string
@@ -636,17 +635,8 @@ def check_merge(path):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
-    host_name = socket.gethostname()
-
     if run_mode:
-        if host_name == uni_laptop:
-            data_path = "C:\\Users\\jonny\\Desktop\\2023\\202303\\20230314"
-        elif host_name == home_PC:
-            data_path = "C:\\Users\\jonny\\Desktop\\2022\\202201\\20220104"
-        elif host_name == holo_PC:
-            data_path = "C:\\Users\\Jonathan Crosier\\Desktop\\MRRPro\\2023\\202303\\20230304"
-        else:
-            data_path = ""
+        data_path = ".\\data\\2023\\202303\\20230322"
     else:
         data_path = (sys.argv[0])
 
@@ -654,10 +644,7 @@ if __name__ == '__main__':
 
     for folder in folder_list:
         process_list = check_merge(folder)
-        #destination_fold, sub_fold = os.path.split(folder)
-        #basename = "MRRPro" + "_" + sub_fold
+        # destination_fold, sub_fold = os.path.split(folder)
+        # basename = "MRRPro" + "_" + sub_fold
         # merge_result = merge_nc_files(process_list, destination_fold, basename)
-        destination_fold = "C:\\Users\\Jonathan Crosier\\Desktop\\MRRPro\\dest"
-        destination_name = "temp_"
-        field_list = ["time", "range", "Z"]
-        export_fields(field_list, process_list, destination_fold, destination_name)
+        export_fields(export_field_list, process_list, export_folder, export_temp_name)
