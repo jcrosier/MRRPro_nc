@@ -1,13 +1,13 @@
 import os.path
 import netCDF4 as nC
-from cftime import num2date
+import cftime
 import matplotlib.pyplot as plt
 import sys
 import numpy as np
 
 # import datetime as dt
 
-run_mode = True
+run_mode = False
 
 nc_file_ext = ".nc"
 time_dimension = "time"
@@ -155,8 +155,8 @@ def test_file_manipulation(path):
         print(time_start_string, time_end_string, time_ref_string)
         print(time_data.shape, min(time_data), max(time_data), len(time_data))
         print(range_data.shape, min(range_data), max(range_data), len(range_data))
-        print(num2date(time_data[0:3], units))
-        print(num2date(time_data[-3:], units))
+        print(cftime.num2date(time_data[0:3], units))
+        print(cftime.num2date(time_data[-3:], units))
         netcdf_print_var_attributes(file, "time")
         netcdf_print_dims(file)
         break
@@ -570,8 +570,8 @@ def export_fields(variable_list, group_list, output_fold, output_file):
             t_dim_input = input_id.dimensions["time"]
             r_dim_input = input_id.dimensions["range"]
 
-            t_dim_output = output_id.createDimension("time", len(t_dim_input))
-            r_dim_output = output_id.createDimension("range", len(r_dim_input))
+            output_id.createDimension("time", len(t_dim_input))
+            output_id.createDimension("range", len(r_dim_input))
 
             for var in variable_list:
                 var_input = input_id.variables[var]
@@ -637,14 +637,20 @@ if __name__ == '__main__':
 
     if run_mode:
         data_path = ".\\data\\2023\\202303\\20230322"
+        run_type = 0
     else:
         data_path = (sys.argv[0])
+        run_type = (sys.argv[1])
+        print(data_path)
+        print(run_type)
 
     folder_list = search_directories(data_path)
 
     for folder in folder_list:
         process_list = check_merge(folder)
-        # destination_fold, sub_fold = os.path.split(folder)
-        # basename = "MRRPro" + "_" + sub_fold
-        # merge_result = merge_nc_files(process_list, destination_fold, basename)
-        export_fields(export_field_list, process_list, export_folder, export_temp_name)
+
+        if run_type == 0:
+            export_fields(export_field_list, process_list, export_folder, export_temp_name)
+        elif run_type == 1:
+            destination_fold, filename = os.path.split(folder)
+            merge_result = merge_nc_files(process_list, destination_fold, "MRRPro_" + filename)
