@@ -3,10 +3,9 @@ import netCDF4 as nC
 import time
 import datetime
 
-root_input_folder = "C:\\Users\\jonny\\repos\\MRRPro_nc\\data"
-root_output_folder = "C:\\Users\\jonny\\Desktop\\temp"
+root_input_folder = "C:\\FirsData\\MRR\\MRR\\MRRPro91"
+root_output_folder = "C:\\FirsData\\MRR\\MRR\\realtime"
 export_field_list = ["time", "range", "Z"]
-number_of_days = 2
 
 nc_file_ext = ".nc"
 title_att_name = "title"
@@ -119,6 +118,13 @@ def export_fields(variable_list, file_path, output_fold):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
+    now = datetime.datetime.now()
+    
+    if now.hour < 2:
+        number_of_days = 2
+    else:
+        number_of_days = 1
+    
     for day in range(number_of_days):
 
         current_date = str(datetime.date.today() - datetime.timedelta(days=day))
@@ -126,7 +132,7 @@ if __name__ == '__main__':
         month = current_date[5:7]
         day = current_date[8:10]
 
-        input_folder = root_input_folder + "\\" + year + "\\" + year + month + "\\" + year + month + day
+        input_folder = root_input_folder + "\\" + year + month + "\\" + year + month + day
 
         if os.path.exists(input_folder) is False:
             continue
