@@ -1,19 +1,28 @@
-import os.path
+# This script extracts user specified variables from MRR Pro nc files for the current day
+# The source path containing original MRR Pro nc files is specified on the command line
+# The destination path for the output nc files is specified on the command line
+# The variable list is specified on the command line
+
+# generic usage:
+# python extract_subset.py sourceStr, destinationStr, variablesStr
+
+# example usage:
+# python extract_subset.py "C:\Users\jonny\repos\MRRPro_nc\data\2023" "C:\Users\jonny\Desktop\temp" "time,range,Z,VEL"
+
+import os
 import netCDF4 as nC
 import time
 import datetime
+import sys
 
-root_input_folder = "C:\\FirsData\\MRR\\MRR\\MRRPro91"
-root_output_folder = "C:\\FirsData\\MRR\\MRR\\realtime"
-export_field_list = ["time", "range", "Z"]
-
+time_delete = 1
 nc_file_ext = ".nc"
 title_att_name = "title"
 title_att_value = "METEK MRR Pro"
 export_temp_name = "temp_"
 
 
-def list_mrrpro_nc(path):
+def list_nc(path):
     """
     List at all the valid nc files in a given path.
 
@@ -25,18 +34,18 @@ def list_mrrpro_nc(path):
     Returns
     -------
     nc_file_list    : list
-        a list of mrrpro nc files
+        a list of MRR Pro nc files
     """
     nc_file_list = []
     file_list = os.listdir(path)
-    for file in file_list:
-        full_path = os.path.join(path, file)
+    for current_file in file_list:
+        full_path = os.path.join(path, current_file)
         if valid_data_file(full_path):
             nc_file_list.append(full_path)
     return nc_file_list
 
 
-def valid_data_file(file_path):
+def valid_data_file(current_file):
     """
     check the input file is a valid MRR-Pro netcdf:
     1) checks the file exists
@@ -45,7 +54,7 @@ def valid_data_file(file_path):
 
     Parameters
     ----------
-    file_path : string
+    current_file : string
         full path to an individual file
 
     Returns
@@ -53,11 +62,11 @@ def valid_data_file(file_path):
         True    : file PASSES checks: file IS a valid MRR-Pro file
         False   : file FAILS checks: file IS NOT a valid MRR-Pro file
     """
-    if os.path.exists(file_path) is False:
+    if os.path.exists(current_file) is False:
         return False
-    if file_path.endswith(nc_file_ext) is False:
+    if current_file.endswith(nc_file_ext) is False:
         return False
-    nc_file = nC.Dataset(file_path, "r")
+    nc_file = nC.Dataset(current_file, "r")
     attribute_title = getattr(nc_file, title_att_name)
     nc_file.close()
     if title_att_value in attribute_title:
@@ -118,26 +127,34 @@ def export_fields(variable_list, file_path, output_fold):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
+    if len(sys.argv) < 4:
+        sys.exit()
+
+    root_input_folder = sys.argv[1]
+    root_output_folder = sys.argv[2]
+    export_field_list = (sys.argv[3]).split(",")
+
+    if os.path.exists(root_output_folder) is False:
+        sys.exit()
+
     now = datetime.datetime.now()
-    
     if now.hour < 2:
         number_of_days = 2
     else:
         number_of_days = 1
-    
-    for day in range(number_of_days):
 
-        current_date = str(datetime.date.today() - datetime.timedelta(days=day))
-        year = current_date[0:4]
-        month = current_date[5:7]
-        day = current_date[8:10]
+    for day in range(number_of_days):
+        current_date = datetime.date.today() - datetime.timedelta(days=day)
+        year = str(current_date.year)
+        month = str(current_date.month).zfill(2)
+        day = str(current_date.day).zfill(2)
 
         input_folder = root_input_folder + "\\" + year + month + "\\" + year + month + day
 
         if os.path.exists(input_folder) is False:
             continue
 
-        nc_list = list_mrrpro_nc(input_folder)
+        nc_list = list_nc(input_folder)
 
         for file in nc_list:
             output_path = root_output_folder + "\\" + export_temp_name + os.path.basename(file)
@@ -146,8 +163,8 @@ if __name__ == '__main__':
 
     time_now = time.time()
     for file in os.listdir(root_output_folder):
-        file_path = os.path.join(root_output_folder, file)
-        time_file = os.stat(file_path).st_mtime
-        if time_file < (time_now - number_of_days * 86400):
-            if os.path.isfile(file_path):
-                os.remove(file_path)
+        file_full_path = os.path.join(root_output_folder, file)
+        time_file = os.stat(file_full_path).st_mtime
+        if time_file < (time_now - (time_delete * 86400)):
+            if os.path.isfile(file_full_path):
+                os.remove(file_full_path)
