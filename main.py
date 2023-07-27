@@ -1,28 +1,14 @@
-import os.path
+import os
 import netCDF4 as nC
-import cftime
-import matplotlib.pyplot as plt
 import sys
+import datetime
 import numpy as np
 
-# import datetime as dt
-
-run_mode = False
-
 nc_file_ext = ".nc"
-time_dimension = "time"
-range_dimension = "range"
 title_att_name = "title"
-vars_att_name = "field_names"
 title_att_value = "METEK MRR Pro"
-output_extension = "_merged"
-export_field_list = ["time", "range", "Z"]
-export_folder = ".\\dest"
-export_temp_name = "temp_"
-folder_length_y = 4
-folder_length_ym = 6
-folder_length_ymd = 8
-folder_name_lengths = [folder_length_y, folder_length_ym, folder_length_ymd]
+vars_att_name = "field_names"
+output_prefix = "MRRPro_"
 
 
 def print_ncattr(nc_fid, key, f_out, opt):
@@ -143,84 +129,21 @@ def test_file_manipulation(path):
                 nc_file_list.append(full_path)
 
     for file in nc_file_list:
-        time_data = netcdf_load_var(file, time_dimension)
-        range_data = netcdf_load_var(file, range_dimension)
+        time_data = netcdf_load_var(file, "time")
+        range_data = netcdf_load_var(file, "range")
         time_start = netcdf_load_var(file, "time_coverage_start")
         time_end = netcdf_load_var(file, "time_coverage_end")
         time_ref = netcdf_load_var(file, "time_reference")
-        units = 'seconds since 1970-01-01 00:00:00'
         time_start_string = nC.chartostring(time_start)
         time_end_string = nC.chartostring(time_end)
         time_ref_string = nC.chartostring(time_ref)
         print(time_start_string, time_end_string, time_ref_string)
         print(time_data.shape, min(time_data), max(time_data), len(time_data))
         print(range_data.shape, min(range_data), max(range_data), len(range_data))
-        print(cftime.num2date(time_data[0:3], units))
-        print(cftime.num2date(time_data[-3:], units))
-        netcdf_print_var_attributes(file, "time")
-        netcdf_print_dims(file)
+        # units = 'seconds since 1970-01-01 00:00:00'
+        # print(cftime.num2date(time_data[0:3], units))
+        # print(cftime.num2date(time_data[-3:], units))
         break
-
-
-def netcdf_lib_version():
-    print(nC.getlibversion())
-
-
-def netcdf_print_groups(file):
-    root_group = nC.Dataset(file, "r")
-    print("grp list:")
-    for group in root_group.groups:
-        print(group)
-    root_group.close()
-
-
-def netcdf_print_dims(file):
-    # print all the dimensions in a given file / group
-    root_group = nC.Dataset(file, "r")
-    print("dim list:")
-    for dim in root_group.dimensions:
-        print(root_group.dimensions[dim].name, len(root_group.dimensions[dim]))
-    root_group.close()
-
-
-def netcdf_print_var_attributes(file, variable):
-    root_group = nC.Dataset(file, "r")
-    var = root_group.variables[variable]
-    for att in var.ncattrs():
-        try:
-            att_val = var.getncattr(att)
-            print(att, att_val)
-        except AttributeError:
-            print("Attribute not found", att)
-            continue
-    root_group.close()
-
-
-def netcdf_print_attributes(file):
-    # print all the dimensions in a given file / group
-    root_group = nC.Dataset(file, "r")
-    print("atr list:")
-    for attribute in root_group.ncattrs():
-        print(attribute, getattr(root_group, attribute))
-    root_group.close()
-
-
-def netcdf_print_var_names(file):
-    root_group = nC.Dataset(file, "r")
-    print("var list:")
-    for variable in root_group.variables:
-        print(variable)
-    root_group.close()
-
-
-def netcdf_plot_2d(file, variable):
-    root_group = nC.Dataset(file, "r")
-    var = root_group.variables[variable]
-    var_data = var[:]
-    root_group.close()
-    fig, ax = plt.subplots()
-    ax.imshow(var_data)
-    plt.show()
 
 
 def netcdf_load_var(file, variable):
@@ -229,6 +152,34 @@ def netcdf_load_var(file, variable):
     var_data = var[:]
     root_group.close()
     return var_data
+
+
+def valid_data_folder(path):
+    """
+    check the input path contains valid MRR-Pro netcdf files:
+    1) checks the path exists
+    2) get list of all files in the path, and check they are valid files by calling valid_data_file()
+
+    Parameters
+    ----------
+    path : string
+        Full path to a folder which we want to search for valid MRR-Pro files
+
+    Returns
+    -------
+    Boolean :
+        True    : folder PASSES checks: folder DOES contain valid MRR-Pro file(s)
+        False   : folder FAILS checks: folder DOES NOT contain valid MRR-Pro file(s)
+    """
+    # check the data path is a real input
+    if os.path.exists(path) is False:
+        return False
+    else:
+        file_list = os.listdir(path)
+        for file in file_list:
+            if valid_data_file(os.path.join(path, file)):
+                return True
+        return False
 
 
 def valid_data_file(file):
@@ -260,115 +211,48 @@ def valid_data_file(file):
     return False
 
 
-def valid_data_folder(path):
+def create_merge_list(path):
     """
-    check the input path contains valid MRR-Pro netcdf files:
-    1) checks the path exists
-    2) get list of all files in the path, and check they are valid files by calling valid_data_file()
+    Look at all the valid nc files in a given path....
+    Check which files can be merged based on dataset info (variable names, dtypes, units and dimensions)
+    Return a nested list which groups together files which can be merged
 
     Parameters
     ----------
     path : string
-        Full path to a folder which we want to search for valid MRR-Pro files
+        string containing a path pointing to MRR-Pro data
 
     Returns
     -------
-    Boolean :
-        True    : folder PASSES checks: folder DOES contain valid MRR-Pro file(s)
-        False   : folder FAILS checks: folder DOES NOT contain valid MRR-Pro file(s)
+    master_merge_list    : list
+        a list of lists, each sublist contains a list of files which can be merged
     """
-    # check the data path is a real input
-    if os.path.exists(path) is False:
-        return False
-    else:
-        file_list = os.listdir(path)
-        for file in file_list:
-            if valid_data_file(os.path.join(path, file)):
-                return True
-        return False
+    nc_file_list = []
 
+    file_list = os.listdir(path)
+    for file in file_list:
+        full_path = os.path.join(path, file)
+        if valid_data_file(full_path):
+            nc_file_list.append(full_path)
 
-def search_directories(path):
-    """
-    Search a given path to find MRR-Pro datafiles
-    the search method is based on the known structure of the MRR-Pro data archive:
-    */yyyy/yyyymm/yyyymmdd/*.nc
-    the function examines the last part of the input path and determines how deep to search for data
+    number_of_nc_files = len(nc_file_list)
+    master_merge_list = []
+    current_merge_list = []
 
-    Parameters
-    ----------
-    path : string
-        string containing a path to a MRR-Pro raw data archive
+    for idx, file in enumerate(nc_file_list):
+        if len(current_merge_list) == 0:
+            current_merge_list.append(file)
+        else:
+            merge_test_result = merge_test(current_merge_list[0], file)
+            if merge_test_result is True:
+                current_merge_list.append(file)
+            else:
+                master_merge_list.append(current_merge_list)
+                current_merge_list = [file]
+        if idx == (number_of_nc_files - 1):
+            master_merge_list.append(current_merge_list)
 
-    Returns
-    -------
-    folders : list
-        A list of the full paths to all NetCDFs found in the root input path
-    """
-
-    folders = []
-
-    if os.path.exists(path) is False:
-        return folders
-
-    base_folder_length = len(os.path.basename(path))
-    if base_folder_length not in folder_name_lengths:
-        return folders
-
-    if base_folder_length == folder_length_ymd:
-        if valid_data_folder(path) is True:
-            folders.append(path)
-            return folders
-
-    if base_folder_length == folder_length_ym:
-        for sub_folder in os.listdir(path):
-            full_path = os.path.join(path, sub_folder)
-            if valid_data_folder(full_path) is True:
-                folders.append(full_path)
-        return folders
-
-    if base_folder_length == folder_length_y:
-        for sub_folder in os.listdir(path):
-            sub_path = os.path.join(path, sub_folder)
-            for sub_sub_folder in os.listdir(sub_path):
-                full_path = os.path.join(sub_path, sub_sub_folder)
-                if valid_data_folder(full_path) is True:
-                    folders.append(full_path)
-        return folders
-
-    return folders
-
-
-def compare_attributes(data1_id, data2_id, var_name, att_list):
-    """
-    Check to see if specified attributes in the input att_list, for a given variable, are identical or not
-
-    Parameters
-    ----------
-    data1_id   : netcdf file object
-        netcdf file object created using e.g. nC.Dataset("my_netcdf.nc", "r")
-    data2_id   : netcdf file object
-        netcdf file object created using e.g. nC.Dataset("my_netcdf.nc", "r")
-    var_name    : string
-        name of a variable found in the nc files
-    att_list    : python list
-        a list of the attributes to compare
-
-    Returns
-    -------
-    result  : Boolean
-        True    : attribute ARE identical
-        False   : files ARE NOT identical
-    """
-    result = True
-    for att in data1_id.variables[var_name].ncattrs():
-        if att in att_list:
-            att1 = data1_id.variables[var_name].getncattr(att)
-            att2 = data2_id.variables[var_name].getncattr(att)
-            if att1 != att2:
-                result = False
-                break
-    return result
+    return master_merge_list
 
 
 def merge_test(base_file, ref_file):
@@ -436,6 +320,38 @@ def merge_test(base_file, ref_file):
     return result
 
 
+def compare_attributes(data1_id, data2_id, var_name, att_list):
+    """
+    Check to see if specified attributes in the input att_list, for a given variable, are identical or not
+
+    Parameters
+    ----------
+    data1_id   : netcdf file object
+        netcdf file object created using e.g. nC.Dataset("my_netcdf.nc", "r")
+    data2_id   : netcdf file object
+        netcdf file object created using e.g. nC.Dataset("my_netcdf.nc", "r")
+    var_name    : string
+        name of a variable found in the nc files
+    att_list    : python list
+        a list of the attributes to compare
+
+    Returns
+    -------
+    result  : Boolean
+        True    : attribute ARE identical
+        False   : files ARE NOT identical
+    """
+    result = True
+    for att in data1_id.variables[var_name].ncattrs():
+        if att in att_list:
+            att1 = data1_id.variables[var_name].getncattr(att)
+            att2 = data2_id.variables[var_name].getncattr(att)
+            if att1 != att2:
+                result = False
+                break
+    return result
+
+
 def merge_nc_files(group_list, out_path, base_name):
     """
     Merge all the files listed in the file list, including:
@@ -459,31 +375,90 @@ def merge_nc_files(group_list, out_path, base_name):
     """
     for iteration, group in enumerate(group_list):
 
-        full_output_path = out_path + "\\" + base_name + ("_" + str(iteration) + ".nc")
+        full_output_path = out_path + "\\" + output_prefix + base_name + ("_" + str(iteration) + nc_file_ext)
         output_id = nC.Dataset(full_output_path, "w", format="NETCDF4_CLASSIC")
 
-        # declare all dimensions and calculate length of the merged time dimension
+        # calculate length of the merged time dimension
         time_len = 0
         for idx, file in enumerate(group):
             input_id = nC.Dataset(file, "r")
             time_len += len(input_id.dimensions["time"])
-            if idx == 0:
-                nc_vars = [var for var in input_id.variables]
-                nc_dims = [dim for dim in input_id.dimensions]  # list of nc dimensions
-                for dim in nc_dims:
-                    if str(dim) == "time":
-                        continue
-                    new_dim = output_id.createDimension(str(dim), len(dim))
             input_id.close()
-        pass
-        time_destination = np.empty(time_len, dtype=np.float64)
-        t_dim = output_id.createDimension("time", time_len)
 
-        # FINISH ME
-        for var in nc_vars:
-            start_pos, end_pos = 0, 0
+        # open the first file to get list of vars and dims
+        input_id = nC.Dataset(group[0], "r")
+        f1_vars = [var for var in input_id.variables]
+        f1_dims = [dim for dim in input_id.dimensions]
+        for dim in f1_dims:
+            if str(dim) == "time":
+                output_id.createDimension(str(dim), time_len)
+                continue
+            output_id.createDimension(str(dim), len(input_id.dimensions[dim]))
+        input_id.close()
+
+        destVal = 0
+
+        for var in f1_vars:
+
+            destVal += 1
+
+            input_id = nC.Dataset(group[0], "r")
+
+            var_dims = input_id.variables[var].dimensions
+            var_type = input_id.variables[var].dtype
+            var_shape_str = get_shape_for_variable(input_id, var, time_len)
+
+            att_names = []
+            att_vals = []
+            for nc_att in input_id.variables[var].ncattrs():
+                att_names.append(str(nc_att))
+                att_vals.append(input_id.variables[var].getncattr(nc_att))
+
+            input_id.close()
+
+            nc_att_dict = dict(zip(att_names, att_vals))
+
+            if "_FillValue" in att_names:
+                output_data = output_id.createVariable(str(var), var_type, var_dims,
+                                                       fill_value=nc_att_dict["_FillValue"],
+                                                       compression='zlib', complevel=9)
+            else:
+                output_data = output_id.createVariable(str(var), var_type, var_dims, compression='zlib', complevel=9)
+
+            print(nc_att_dict)
+            for item in nc_att_dict:
+                print(item, nc_att_dict[item])
+                output_data.setncattr(item, nc_att_dict[item])
+            #output_data.setncatts(nc_att_dict)
+
+            try:
+                output_data[:] = destVal
+            except:
+                output_data[:] = str(destVal)
+
+            # t1.units = "days since 2000-01-01"
+            # t1.calendar = "standard"
+            # t1[:] = time_destination
+            print(str(var), var_shape_str, str(var_type), str(var_dims))
+
+            continue
+
+            # start_pos, end_pos = 0, 0
             for idx, file in enumerate(group):
                 input_id = nC.Dataset(file, "r")
+                var_shape_str = get_shape_for_variable(input_id, var, time_len)
+                var_type = input_id.variables[var].dtype
+                print(str(var), var_shape_str, str(var_type))
+                input_id.close()
+                break
+
+                dims_for_variable = input_id.variables[var].dimensions
+
+                if "time" not in dims_for_variable:
+
+                    input_id.close()
+                    break
+
                 if idx == 0:
                     try:
                         var_dims = input_id.variables[var].dimensions
@@ -532,125 +507,52 @@ def merge_nc_files(group_list, out_path, base_name):
     return False
 
 
-def export_fields(variable_list, group_list, output_fold, output_file):
-    """
-    Export subsets of data from nc files
-    Look at all the valid nc files in a given path....
-    Check if some corresponding file exists in the output path
-    If no corresponding output file exists, create it
-    Check which files can be merged based on dataset info (variable names, dtypes, units and dimensions)
-    Merge the files where possible
+def get_shape_for_variable(file_id, var, time_new_len):
+    dim_list = file_id.variables[var].dimensions
+    shape_string = "("
+    num_dims = len(dim_list)
 
-    Parameters
-    ----------
-    variable_list : list
-        string containing names of the fields to export
-    group_list : python list
-        names of folders to search for source datafiles
-    output_fold   : string
-        path to an output directory to store the extracted subset of data
-    output_file   : string
-        prefix to add to filename to output files
-
-    Returns
-    -------
-    num_files   : variable
-        number of files which have been extracted
-    """
-    num_files = 0
-
-    for iteration, group in enumerate(group_list):
-
-        for idx, file in enumerate(group):
-            input_id = nC.Dataset(file, "r")
-
-            full_output_path = output_fold + "\\" + output_file + os.path.basename(file)
-            output_id = nC.Dataset(full_output_path, "w", format="NETCDF4_CLASSIC")
-
-            t_dim_input = input_id.dimensions["time"]
-            r_dim_input = input_id.dimensions["range"]
-
-            output_id.createDimension("time", len(t_dim_input))
-            output_id.createDimension("range", len(r_dim_input))
-
-            for var in variable_list:
-                var_input = input_id.variables[var]
-                var_data = var_input[:]
-                dimension = input_id.variables[var].dimensions
-                data_type = input_id.variables[var].dtype
-                var_output = output_id.createVariable(str(var), data_type, dimension, compression='zlib', complevel=9)
-                var_output[:] = var_data
-
-            input_id.close()
-            output_id.close()
-            num_files += 1
-
-    return num_files
-
-
-def check_merge(path):
-    """
-    Look at all the valid nc files in a given path....
-    Check which files can be merged based on dataset info (variable names, dtypes, units and dimensions)
-    Merge the files where possible
-
-    Parameters
-    ----------
-    path : string
-        string containing a path pointing to MRR-Pro data
-
-    Returns
-    -------
-    master_merge_list    : list
-        a list of lists, each sublist contains a list of files which can be merged
-    """
-    nc_file_list = []
-
-    file_list = os.listdir(path)
-    for file in file_list:
-        full_path = os.path.join(path, file)
-        if valid_data_file(full_path):
-            nc_file_list.append(full_path)
-
-    number_of_nc_files = len(nc_file_list)
-    master_merge_list = []
-    current_merge_list = []
-
-    for idx, file in enumerate(nc_file_list):
-        if len(current_merge_list) == 0:
-            current_merge_list.append(file)
+    for idx, dim in enumerate(dim_list):
+        if str(dim) == "time":
+            len_str = str(time_new_len)
         else:
-            merge_test_result = merge_test(current_merge_list[0], file)
-            if merge_test_result is True:
-                current_merge_list.append(file)
-            else:
-                master_merge_list.append(current_merge_list)
-                current_merge_list = [file]
-        if idx == (number_of_nc_files - 1):
-            master_merge_list.append(current_merge_list)
+            len_str = str(len(file_id.dimensions[dim]))
+        shape_string += len_str
+        if idx == 0 or idx < (num_dims - 1):
+            shape_string += ","
+    shape_string += ")"
 
-    return master_merge_list
+    return shape_string
 
 
-# Press the green button in the gutter to run the script.
+    # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
-    if run_mode:
-        data_path = ".\\data\\2023\\202303\\20230322"
-        run_type = 0
-    else:
-        data_path = (sys.argv[0])
-        run_type = (sys.argv[1])
-        print(data_path)
-        print(run_type)
+    if len(sys.argv) < 4:
+        sys.exit()
 
-    folder_list = search_directories(data_path)
+    try:
+        data_path = str(sys.argv[1])
+        start_day = int(sys.argv[2])
+        stop_day = int(sys.argv[3])
+    except ValueError:
+        sys.exit()
 
-    for folder in folder_list:
-        process_list = check_merge(folder)
+    if not os.path.exists(data_path):
+        sys.exit()
 
-        if run_type == 0:
-            export_fields(export_field_list, process_list, export_folder, export_temp_name)
-        elif run_type == 1:
-            destination_fold, filename = os.path.split(folder)
-            merge_result = merge_nc_files(process_list, destination_fold, "MRRPro_" + filename)
+    if start_day < 0 or stop_day < 0:
+        sys.exit()
+
+    for i_day in range(start_day, stop_day+1):
+        date = datetime.date.today() - datetime.timedelta(days=i_day)
+        folder_date_string = str(date.year) + str(date.month).zfill(2)
+        sub_folder_date_string = folder_date_string + str(date.day).zfill(2)
+
+        input_folder = data_path + "\\" + folder_date_string + "\\" + sub_folder_date_string
+        output_folder = data_path + "\\" + folder_date_string
+        if valid_data_folder(input_folder) is False:
+            continue
+
+        process_list = create_merge_list(input_folder)
+        merge_result = merge_nc_files(process_list, output_folder, sub_folder_date_string)
