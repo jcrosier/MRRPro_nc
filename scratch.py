@@ -1,7 +1,53 @@
 import netCDF4 as nC
 import numpy
 
-# todo need to understand Masked arrays and Fill Values
+OUTPUT_PATH = "C:\\Users\\jonny\\Desktop\\output.txt"
+EXPORT_NAME = "Z"
+AVERAGE_TIME = 60
+
+# todo 1: add averging capability
+
+def driver_function():
+    file = get_latest_input()
+    date_string = get_date_string()
+    with nC.Dataset(file, "r", format="NETCDF4_CLASSIC") as input_id:
+        with open(OUTPUT_PATH, 'w') as output_id:
+            export_data(input_id, output_id, EXPORT_NAME, date_string)
+
+
+def get_date_string():
+    date_string = "221204"
+    return date_string
+
+
+def get_latest_input():
+    filename = "C:\\Users\\jonny\\Desktop\\20221204_030000.nc"
+    return filename
+
+
+def export_data(f_input, f_output, variable, date_str):
+    data_shape = get_dim_tuple(f_input, variable)
+
+    for i in range(data_shape[0]):
+        time_value = int(f_input.variables["time"][i]) % 86400
+        f_output.write(date_str+","+str(time_value)+",")
+        for j in range(data_shape[1]):
+            val = float(f_input.variables[variable][i][j])
+            if numpy.isnan(val):
+                f_output.write("nan")
+            else:
+                f_output.write("{:.2f}".format(val))
+            if j < (data_shape[1] - 1):
+                f_output.write(",")
+        f_output.write("\r")
+
+
+def get_dim_tuple(file_id, var):
+    len_list = []
+    dim_names_tuple = file_id.variables[var].dimensions
+    for dim in dim_names_tuple:
+        len_list.append(len(file_id.dimensions[dim]))
+    return len_list
 
 
 def get_chunk_from_dims(data_id, dim_tuple, override_dim, override_val):
