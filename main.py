@@ -2,14 +2,13 @@ import os
 import netCDF4 as nC
 import sys
 import datetime
+import numpy
 
 nc_file_ext = ".nc"
 title_att_name = "title"
 title_att_value = "METEK MRR Pro"
 vars_att_name = "field_names"
 output_prefix = "MRRPro_"
-
-# todo 1: figure out why none of the output data are correct for time varying fields
 
 
 def valid_data_folder(path):
@@ -29,7 +28,6 @@ def valid_data_folder(path):
         True    : folder PASSES checks: folder DOES contain valid MRR-Pro file(s)
         False   : folder FAILS checks: folder DOES NOT contain valid MRR-Pro file(s)
     """
-    # check the data path is a real input
     if os.path.exists(path) is False:
         return False
     else:
@@ -147,7 +145,7 @@ def merge_test(base_file, ref_file):
     if base_field_names != ref_field_names:
         result = False
 
-    # check the dimensions are consistent
+    # check the properties of key dimensions are consistent
     if result:
         range_comp_list = ["size", "units", "type", "meters_to_center_of_first_gate", "meters_between_gates"]
         result = compare_attributes(base_file_id, ref_file_id, "range", range_comp_list)
@@ -163,7 +161,6 @@ def merge_test(base_file, ref_file):
         nc_vars_ref = [var for var in ref_file_id.variables]
         for var_base in nc_vars_base:
             if var_base in nc_vars_ref:
-
                 result = compare_attributes(base_file_id, ref_file_id, var_base, ["units", "type"])
                 if not result:
                     break
@@ -248,10 +245,16 @@ def merge_nc_files(group_list, out_path, base_name):
         for variable in input_var_list:
             var_dims = input_id.variables[variable].dimensions
             var_type = input_id.variables[variable].dtype
+            shape = get_size_from_dims(input_id, var_dims, "", 0)
+            if len(var_dims) >= 3 and "time" in var_dims:
+                shape = get_size_from_dims(input_id, var_dims, "time", 300)
             output_data = output_id.createVariable(str(variable), var_type, var_dims,
-                                                   compression='zlib', complevel=9)
+                                                   compression='zlib', complevel=2, chunksizes=shape)
             if "time" not in var_dims:
-                output_data[:] = input_id.variables[variable][:]
+                if len(var_dims) > 0:
+                    input_array = numpy.empty(shape, dtype=var_type)
+                    input_array[:] = input_id.variables[variable][:]
+                    output_data[:] = input_array
             copy_attributes(input_id.variables[variable], output_id.variables[variable])
         input_id.close()
 
@@ -261,21 +264,24 @@ def merge_nc_files(group_list, out_path, base_name):
             time_points = input_id.variables["time"].size
             end_pos += time_points
             for variable in input_var_list:
+                var_type = input_id.variables[variable].dtype
+                var_dims = input_id.variables[variable].dimensions
+                shape = get_size_from_dims(input_id, var_dims, "", 0)
+                output_data = output_id.variables[variable]
                 if "time_coverage_end" in variable:
                     if idx == (len(group)-1):
-                        output_data = output_id.variables[variable]
-                        output_data[:] = input_id.variables[variable][:]
-                var_dims = input_id.variables[variable].dimensions
+                        input_array = numpy.empty(shape, dtype=var_type)
+                        input_array[:] = input_id.variables[variable][:]
+                        output_data[:] = input_array
                 if "time" in var_dims:
-                    output_data = output_id.variables[variable]
-                    input_data = input_id.variables[variable]
-                    # todo 1
+                    input_array = numpy.empty(shape, dtype=var_type)
+                    input_array[:] = input_id.variables[variable][:]
                     if len(var_dims) == 1:
-                        output_data[start_pos:end_pos] = input_data[:]
+                        output_data[start_pos:end_pos] = input_array
                     elif len(var_dims) == 2:
-                        output_data[start_pos:end_pos, :] = input_data[:, :]
+                        output_data[start_pos:end_pos, :] = input_array
                     elif len(var_dims) == 3:
-                        output_data[start_pos:end_pos, :, :] = input_data[:, :, :]
+                        output_data[start_pos:end_pos, :, :] = input_array
             input_id.close()
             start_pos += time_points
 
@@ -285,6 +291,21 @@ def merge_nc_files(group_list, out_path, base_name):
 
 
 def total_dimension_length(file_list, dimension):
+    """
+    Calculate the total number of data points in a dimension, integrating across all files in a list
+
+    Parameters
+    ----------
+    file_list   : list
+        contains full paths of all files to integrate over
+    dimension    : string
+        name of a valid netCDF dimension
+
+    Returns
+    -------
+    total_len : int
+        total number of datapoints integrated across the files
+    """
     total_len = 0
     for file in file_list:
         input_id = nC.Dataset(file, "r")
@@ -294,6 +315,25 @@ def total_dimension_length(file_list, dimension):
 
 
 def copy_dimensions(input_nc, output_nc, override_dim, override_value):
+    """
+    Copies dimension data from one input netCDF to an output netCDF
+    The length of one dimension can be overriden, which facilitates merging of files (time dimension)
+
+    Parameters
+    ----------
+    input_nc   : netCDF id
+        input which contains the original dimension data
+    output_nc   : netCDF id
+        destination to copy the dimension data into
+    override_dim   : string
+        name of a dimension to override the default size
+    override_value  : int
+        new value to use instead of the value found in the input
+
+    Returns
+    -------
+    None
+    """
     input_dims = [dim for dim in input_nc.dimensions]
     for dim in input_dims:
         if str(dim) == override_dim:
@@ -319,19 +359,14 @@ def copy_variable(input_id, output_id, var):
     copy_attributes(input_id.variables[var], output_id)
 
 
-def get_shape_for_variable(file_id, var):
-    dim_list = file_id.variables[var].dimensions
-    shape_string = "("
-    num_dims = len(dim_list)
-
-    for idx, dim in enumerate(dim_list):
-        len_str = str(len(file_id.dimensions[dim]))
-        shape_string += len_str
-        if idx == 0 or idx < (num_dims - 1):
-            shape_string += ","
-    shape_string += ")"
-
-    return shape_string
+def get_size_from_dims(data_id, dim_tuple, override_dim, override_val):
+    chunk_list = []
+    for item in dim_tuple:
+        if item in override_dim:
+            chunk_list.append(override_val)
+        else:
+            chunk_list.append(len(data_id.dimensions[item]))
+    return chunk_list
 
 
 if __name__ == '__main__':
