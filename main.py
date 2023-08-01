@@ -2,7 +2,6 @@ import os
 import netCDF4 as nC
 import sys
 import datetime
-import numpy as np
 
 nc_file_ext = ".nc"
 title_att_name = "title"
@@ -10,148 +9,7 @@ title_att_value = "METEK MRR Pro"
 vars_att_name = "field_names"
 output_prefix = "MRRPro_"
 
-
-def print_ncattr(nc_fid, key, f_out, opt):
-    """
-    Prints the NetCDF file attributes for a given key
-
-    Parameters
-    ----------
-    nc_fid : netCDF4.Dataset
-        A netCDF4 dateset object
-    key : unicode
-        a valid netCDF4.Dataset.variables key
-    f_out : file object
-        a destination file for outputting attribute information
-    opt : variable
-        a variable controlling if output should be sent to file (1) or not (0)
-    """
-    try:
-        if opt == 1:
-            f_out.write("\t\ttype:" + repr(nc_fid.variables[key].dtype) + "\n")
-            for nc_att in nc_fid.variables[key].ncattrs():
-                f_out.write('\t\t%s:' % nc_att + repr(nc_fid.variables[key].getncattr(nc_att)) + "\n")
-        else:
-            print("\t\ttype:", repr(nc_fid.variables[key].dtype))
-            for nc_att in nc_fid.variables[key].ncattrs():
-                print('\t\t%s:' % nc_att, repr(nc_fid.variables[key].getncattr(nc_att)))
-
-    except KeyError:
-        if opt == 1:
-            f_out.write("\t\tWARNING: %s does not contain variable attributes" % key + "\n")
-        else:
-            print("\t\tWARNING: %s does not contain variable attributes" % key)
-
-
-def ncdump(nc_fid, f_out, opt, verb=True):
-    """
-    ncdump outputs dimensions, variables and their attribute information.
-    The information is similar to that of NCAR's ncdump utility.
-    ncdump requires a valid instance of Dataset.
-
-    Parameters
-    ----------
-    nc_fid : netCDF4.Dataset
-        A netCDF4 dateset object
-    f_out : python file object
-        A destination file created with e.g. open('myfile.txt',w)
-    opt :   variable
-        A variable with value 1 (output data to file) or 0 (no output to file)
-    verb : Boolean
-        whether nc_attrs, nc_dims, and nc_vars are printed
-
-    Returns
-    -------
-    nc_attrs : list
-        A Python list of the NetCDF file global attributes
-    nc_dims : list
-        A Python list of the NetCDF file dimensions
-    nc_vars : list
-        A Python list of the NetCDF file variables
-    """
-
-    # NetCDF global attributes
-    nc_attrs = nc_fid.ncattrs()
-    if verb:
-        if opt == 1:
-            f_out.write("NetCDF Global Attributes:" + "\n")
-            for nc_attr in nc_attrs:
-                f_out.write('\t%s:' % nc_attr + repr(nc_fid.getncattr(nc_attr)) + "\n")
-        else:
-            print("NetCDF Global Attributes:")
-            for nc_attr in nc_attrs:
-                print('\t%s:' % nc_attr, repr(nc_fid.getncattr(nc_attr)))
-    nc_dims = [dim for dim in nc_fid.dimensions]  # list of nc dimensions
-    # Dimension shape information.
-    if verb:
-        if opt == 1:
-            f_out.write("NetCDF dimension information:")
-            for dim in nc_dims:
-                f_out.write("\tName:" + dim + "\n")
-                f_out.write("\t\tsize:" + str(len(nc_fid.dimensions[dim])) + "\n")
-                print_ncattr(nc_fid, dim, f_out, opt)
-        else:
-            print("NetCDF dimension information:")
-            for dim in nc_dims:
-                print("\tName:", dim)
-                print("\t\tsize:", len(nc_fid.dimensions[dim]))
-                print_ncattr(nc_fid, dim, f_out, opt)
-    # Variable information.
-    nc_vars = [var for var in nc_fid.variables]  # list of nc variables
-    if verb:
-        if opt == 1:
-            f_out.write("NetCDF variable information:")
-            for var in nc_vars:
-                if var not in nc_dims:
-                    f_out.write('\tName:' + var + "\n")
-                    f_out.write("\t\tdimensions:" + str(nc_fid.variables[var].dimensions) + "\n")
-                    f_out.write("\t\tsize:" + str(nc_fid.variables[var].size) + "\n")
-                    print_ncattr(nc_fid, var, f_out, opt)
-        else:
-            print("NetCDF variable information:")
-            for var in nc_vars:
-                if var not in nc_dims:
-                    print('\tName:', var)
-                    print("\t\tdimensions:", nc_fid.variables[var].dimensions)
-                    print("\t\tsize:", nc_fid.variables[var].size)
-                    print_ncattr(nc_fid, var, f_out, opt)
-    return nc_attrs, nc_dims, nc_vars
-
-
-def test_file_manipulation(path):
-    nc_file_list = []
-
-    file_list = os.listdir(path)
-    for file in file_list:
-        if file.endswith(nc_file_ext):
-            full_path = os.path.join(path, file)
-            if valid_data_file(full_path):
-                nc_file_list.append(full_path)
-
-    for file in nc_file_list:
-        time_data = netcdf_load_var(file, "time")
-        range_data = netcdf_load_var(file, "range")
-        time_start = netcdf_load_var(file, "time_coverage_start")
-        time_end = netcdf_load_var(file, "time_coverage_end")
-        time_ref = netcdf_load_var(file, "time_reference")
-        time_start_string = nC.chartostring(time_start)
-        time_end_string = nC.chartostring(time_end)
-        time_ref_string = nC.chartostring(time_ref)
-        print(time_start_string, time_end_string, time_ref_string)
-        print(time_data.shape, min(time_data), max(time_data), len(time_data))
-        print(range_data.shape, min(range_data), max(range_data), len(range_data))
-        # units = 'seconds since 1970-01-01 00:00:00'
-        # print(cftime.num2date(time_data[0:3], units))
-        # print(cftime.num2date(time_data[-3:], units))
-        break
-
-
-def netcdf_load_var(file, variable):
-    root_group = nC.Dataset(file, "r")
-    var = root_group.variables[variable]
-    var_data = var[:]
-    root_group.close()
-    return var_data
+# todo 1: figure out why none of the output data are correct for time varying fields
 
 
 def valid_data_folder(path):
@@ -379,144 +237,95 @@ def merge_nc_files(group_list, out_path, base_name):
         output_id = nC.Dataset(full_output_path, "w", format="NETCDF4_CLASSIC")
 
         # calculate length of the merged time dimension
-        time_len = 0
-        for idx, file in enumerate(group):
-            input_id = nC.Dataset(file, "r")
-            time_len += len(input_id.dimensions["time"])
-            input_id.close()
+        time_len = total_dimension_length(group, "time")
 
         # open the first file to get list of vars and dims
+        # create the destination dimensions, global atts, variables, and variable atts
         input_id = nC.Dataset(group[0], "r")
-        f1_vars = [var for var in input_id.variables]
-        f1_dims = [dim for dim in input_id.dimensions]
-        for dim in f1_dims:
-            if str(dim) == "time":
-                output_id.createDimension(str(dim), time_len)
-                continue
-            output_id.createDimension(str(dim), len(input_id.dimensions[dim]))
+        copy_dimensions(input_id, output_id, "time", time_len)
+        copy_attributes(input_id, output_id)
+        input_var_list = [var for var in input_id.variables]
+        for variable in input_var_list:
+            var_dims = input_id.variables[variable].dimensions
+            var_type = input_id.variables[variable].dtype
+            output_data = output_id.createVariable(str(variable), var_type, var_dims,
+                                                   compression='zlib', complevel=9)
+            if "time" not in var_dims:
+                output_data[:] = input_id.variables[variable][:]
+            copy_attributes(input_id.variables[variable], output_id.variables[variable])
         input_id.close()
 
-        destVal = 0
-
-        for var in f1_vars:
-
-            destVal += 1
-
-            input_id = nC.Dataset(group[0], "r")
-
-            var_dims = input_id.variables[var].dimensions
-            var_type = input_id.variables[var].dtype
-            var_shape_str = get_shape_for_variable(input_id, var, time_len)
-
-            att_names = []
-            att_vals = []
-            for nc_att in input_id.variables[var].ncattrs():
-                att_names.append(str(nc_att))
-                att_vals.append(input_id.variables[var].getncattr(nc_att))
-
+        start_pos, end_pos = 0, 0
+        for idx, file in enumerate(group):
+            input_id = nC.Dataset(file, "r")
+            time_points = input_id.variables["time"].size
+            end_pos += time_points
+            for variable in input_var_list:
+                if "time_coverage_end" in variable:
+                    if idx == (len(group)-1):
+                        output_data = output_id.variables[variable]
+                        output_data[:] = input_id.variables[variable][:]
+                var_dims = input_id.variables[variable].dimensions
+                if "time" in var_dims:
+                    output_data = output_id.variables[variable]
+                    input_data = input_id.variables[variable]
+                    # todo 1
+                    if len(var_dims) == 1:
+                        output_data[start_pos:end_pos] = input_data[:]
+                    elif len(var_dims) == 2:
+                        output_data[start_pos:end_pos, :] = input_data[:, :]
+                    elif len(var_dims) == 3:
+                        output_data[start_pos:end_pos, :, :] = input_data[:, :, :]
             input_id.close()
-
-            nc_att_dict = dict(zip(att_names, att_vals))
-
-            if "_FillValue" in att_names:
-                output_data = output_id.createVariable(str(var), var_type, var_dims,
-                                                       fill_value=nc_att_dict["_FillValue"],
-                                                       compression='zlib', complevel=9)
-            else:
-                output_data = output_id.createVariable(str(var), var_type, var_dims, compression='zlib', complevel=9)
-
-            print(nc_att_dict)
-            for item in nc_att_dict:
-                print(item, nc_att_dict[item])
-                output_data.setncattr(item, nc_att_dict[item])
-            #output_data.setncatts(nc_att_dict)
-
-            try:
-                output_data[:] = destVal
-            except:
-                output_data[:] = str(destVal)
-
-            # t1.units = "days since 2000-01-01"
-            # t1.calendar = "standard"
-            # t1[:] = time_destination
-            print(str(var), var_shape_str, str(var_type), str(var_dims))
-
-            continue
-
-            # start_pos, end_pos = 0, 0
-            for idx, file in enumerate(group):
-                input_id = nC.Dataset(file, "r")
-                var_shape_str = get_shape_for_variable(input_id, var, time_len)
-                var_type = input_id.variables[var].dtype
-                print(str(var), var_shape_str, str(var_type))
-                input_id.close()
-                break
-
-                dims_for_variable = input_id.variables[var].dimensions
-
-                if "time" not in dims_for_variable:
-
-                    input_id.close()
-                    break
-
-                if idx == 0:
-                    try:
-                        var_dims = input_id.variables[var].dimensions
-                        # var_type = input_id.variables[var].getncattr("type")
-                        print(str(var), var_dims)
-                    except:
-                        input_id.close()
-                        break
-                    # if "time is not in the dimensions
-                    # create a copy of the var and put it in the nc
-                    # copy the attributes
-                    # break out of the loop
-                    # else:
-                    # loop the dimensions to get the dimensions of the arrays
-                    # override the size of the time dimension
-                    # create a numpy array with the correct dimensions
-                # create the nc variable in the destination
-                # copy the attributes
-                # reference the source variable
-                # copy data from source array to the destination array
-
-                input_id.close()
-
-        # this copies and exports the time dataset
-        # need to make this more general for all the datasets
-        # need to also grab all attributes (globals as well as for the variables themselves)
-        # start_pos, end_pos = 0, 0
-
-        # for idx, file in enumerate(group):
-        #     input_id = nC.Dataset(file, "r")
-        #     time_points = input_id.variables["time"].size
-        #     end_pos += time_points
-        #
-        #     time_destination[start_pos:end_pos] = input_id.variables["time"][:]
-        #
-        #     input_id.close()
-        #     start_pos += time_points
-        #
-        # t1 = output_id.createVariable("time", "f8", ("time",))
-        # t1.units = "days since 2000-01-01"
-        # t1.calendar = "standard"
-        # t1[:] = time_destination
+            start_pos += time_points
 
         output_id.close()
 
-    return False
+    return True
 
 
-def get_shape_for_variable(file_id, var, time_new_len):
+def total_dimension_length(file_list, dimension):
+    total_len = 0
+    for file in file_list:
+        input_id = nC.Dataset(file, "r")
+        total_len += len(input_id.dimensions[dimension])
+        input_id.close()
+    return total_len
+
+
+def copy_dimensions(input_nc, output_nc, override_dim, override_value):
+    input_dims = [dim for dim in input_nc.dimensions]
+    for dim in input_dims:
+        if str(dim) == override_dim:
+            output_nc.createDimension(str(dim), override_value)
+            continue
+        output_nc.createDimension(str(dim), len(input_nc.dimensions[dim]))
+
+
+def copy_attributes(input_id, output_id):
+    input_attributes = input_id.ncattrs()
+    for attr in input_attributes:
+        if "_FillValue" in str(attr):
+            continue
+        output_id.setncattr(str(attr), input_id.getncattr(attr))
+
+
+def copy_variable(input_id, output_id, var):
+    var_dims = input_id.variables[var].dimensions
+    var_type = input_id.variables[var].dtype
+    output_data = output_id.createVariable(str(var), var_type, var_dims,
+                                           compression='zlib', complevel=9)
+    output_data[:] = input_id.variables[var][:]
+    copy_attributes(input_id.variables[var], output_id)
+
+
+def get_shape_for_variable(file_id, var):
     dim_list = file_id.variables[var].dimensions
     shape_string = "("
     num_dims = len(dim_list)
 
     for idx, dim in enumerate(dim_list):
-        if str(dim) == "time":
-            len_str = str(time_new_len)
-        else:
-            len_str = str(len(file_id.dimensions[dim]))
+        len_str = str(len(file_id.dimensions[dim]))
         shape_string += len_str
         if idx == 0 or idx < (num_dims - 1):
             shape_string += ","
@@ -525,7 +334,6 @@ def get_shape_for_variable(file_id, var, time_new_len):
     return shape_string
 
 
-    # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
     if len(sys.argv) < 4:
