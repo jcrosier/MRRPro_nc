@@ -10,6 +10,9 @@ title_att_value = "METEK MRR Pro"
 vars_att_name = "field_names"
 output_prefix = "MRRPro_"
 
+# todo 1: check code which calculates chunk sizes. Need to make it smarter so it can be set dynamically (currently 300).
+# todo 2: add docstrings where missing
+
 
 def valid_data_folder(path):
     """
