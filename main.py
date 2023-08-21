@@ -4,17 +4,19 @@ import sys
 import datetime
 import numpy
 
-nc_file_ext = ".nc"
-title_att_name = "title"
-title_att_value = "METEK MRR Pro"
-vars_att_name = "field_names"
-output_prefix = "MRRPro_"
+NC_FILE_EXT = ".nc"
+NC_OUTPUT_PREFIX = "MRRPro_"
+NC_MERGE_DIMENSION = "time"
+NC_ATT_TITLE_NAME = "title"
+NC_ATT_TITLE_VALUE = "METEK MRR Pro"
+NC_ATT_FIELDNAMES = "field_names"
+NC_MAX_CHUNK_TDIM = 300
+NC_COMPRESSION_SETTING = 2
 
-# todo 1: check code which calculates chunk sizes. Need to make it smarter so it can be set dynamically (currently 300).
-# todo 2: add docstrings where missing
+# todo 1: add docstrings where missing
 
 
-def valid_data_folder(path):
+def is_valid_data_folder(path):
     """
     check the input path contains valid MRR-Pro netcdf files:
     1) checks the path exists
@@ -36,12 +38,12 @@ def valid_data_folder(path):
     else:
         file_list = os.listdir(path)
         for file in file_list:
-            if valid_data_file(os.path.join(path, file)):
+            if is_valid_data_file(os.path.join(path, file)):
                 return True
         return False
 
 
-def valid_data_file(file):
+def is_valid_data_file(file):
     """
     check the input file is a valid MRR-Pro netcdf:
     1) checks the file exists
@@ -60,14 +62,26 @@ def valid_data_file(file):
     """
     if os.path.exists(file) is False:
         return False
-    if file.endswith(nc_file_ext) is False:
+
+    if file.endswith(NC_FILE_EXT) is False:
         return False
-    nc_file = nC.Dataset(file, "r")
-    attribute_title = getattr(nc_file, title_att_name)
-    nc_file.close()
-    if title_att_value in attribute_title:
+
+    try:
+        nc_file = nC.Dataset(file, "r")
+    except OSError:
+        return False
+
+    try:
+        attribute_title = getattr(nc_file, NC_ATT_TITLE_NAME)
+        nc_file.close()
+    except AttributeError:
+        nc_file.close()
+        return False
+
+    if NC_ATT_TITLE_VALUE in attribute_title:
         return True
-    return False
+    else:
+        return False
 
 
 def create_merge_list(path):
@@ -91,7 +105,7 @@ def create_merge_list(path):
     file_list = os.listdir(path)
     for file in file_list:
         full_path = os.path.join(path, file)
-        if valid_data_file(full_path):
+        if is_valid_data_file(full_path):
             nc_file_list.append(full_path)
 
     number_of_nc_files = len(nc_file_list)
@@ -118,10 +132,9 @@ def merge_test(base_file, ref_file):
     """
     Check to see if the files are compatible for merging
     The following are all checked and must pass check to be suitable for a merge:
-        1) identical variable names, including identical dtypes and identical units
-        2) identical range dimension
-        3) identical spectrum_n_samples dimension
-        5) any more checks?.....
+        1) identical variable names listed in the fieldnames attributes
+        2) identical dimension names and lengths (excluding the global NC_MERGE_DIMENSION)
+        3) identical variables and variable attributes
 
     Parameters
     ----------
@@ -143,29 +156,35 @@ def merge_test(base_file, ref_file):
     ref_file_id = nC.Dataset(ref_file, "r")
 
     # check the relevant global attribute to check the list of variables is the same
-    base_field_names = getattr(base_file_id, vars_att_name)
-    ref_field_names = getattr(ref_file_id, vars_att_name)
-    if base_field_names != ref_field_names:
+    try:
+        base_field_names = base_file_id.getncattr(NC_ATT_FIELDNAMES)
+        ref_field_names = ref_file_id.getncattr(NC_ATT_FIELDNAMES)
+        if base_field_names != ref_field_names:
+            result = False
+    except AttributeError:
         result = False
 
-    # check the properties of key dimensions are consistent
+    # check the dimensions are consistent
     if result:
-        range_comp_list = ["size", "units", "type", "meters_to_center_of_first_gate", "meters_between_gates"]
-        result = compare_attributes(base_file_id, ref_file_id, "range", range_comp_list)
-        if result:
-            n_samples_base = base_file_id.dimensions["spectrum_n_samples"]
-            n_samples_ref = ref_file_id.dimensions["spectrum_n_samples"]
-            if n_samples_base.size != n_samples_ref.size:
-                result = False
+        nc_dims_base = [dim for dim in base_file_id.dimensions]
+        nc_dims_ref = [dim for dim in base_file_id.dimensions]
+        if nc_dims_base != nc_dims_ref:
+            result = False
+        else:
+            for dim in nc_dims_base:
+                if dim == NC_MERGE_DIMENSION:
+                    continue
+                if base_file_id.dimensions[dim].size != ref_file_id.dimensions[dim].size:
+                    result = False
 
-    # get a list of all the variables in the two files and check the units and dtype are the same
+    # get a list of all the variables in the two files and check the attributes are the same
     if result:
         nc_vars_base = [var for var in base_file_id.variables]
         nc_vars_ref = [var for var in ref_file_id.variables]
         for var_base in nc_vars_base:
             if var_base in nc_vars_ref:
-                result = compare_attributes(base_file_id, ref_file_id, var_base, ["units", "type"])
-                if not result:
+                result = compare_var_attributes(base_file_id, ref_file_id, var_base, [])
+                if result is False:
                     break
             else:
                 result = False
@@ -178,7 +197,7 @@ def merge_test(base_file, ref_file):
     return result
 
 
-def compare_attributes(data1_id, data2_id, var_name, att_list):
+def compare_var_attributes(data1_id, data2_id, var_name, att_list):
     """
     Check to see if specified attributes in the input att_list, for a given variable, are identical or not
 
@@ -192,22 +211,34 @@ def compare_attributes(data1_id, data2_id, var_name, att_list):
         name of a variable found in the nc files
     att_list    : python list
         a list of the attributes to compare
+        if att_list is empty (len==0), then automatically check all attributes
 
     Returns
     -------
     result  : Boolean
-        True    : attribute ARE identical
-        False   : files ARE NOT identical
+        True    : all attributes present and identical values
+        False   : var attribute values ARE NOT identical or attributes are missing
     """
-    result = True
-    for att in data1_id.variables[var_name].ncattrs():
-        if att in att_list:
+    if len(att_list) == 0:
+        att_list = data1_id.variables[var_name].ncattrs()
+
+    for att in att_list:
+        try:
             att1 = data1_id.variables[var_name].getncattr(att)
             att2 = data2_id.variables[var_name].getncattr(att)
+            try:
+                if numpy.isnan(att1) and numpy.isnan(att2):
+                    continue
+            except TypeError:
+                pass
+
             if att1 != att2:
-                result = False
-                break
-    return result
+                return False
+
+        except AttributeError:
+            return False
+
+    return True
 
 
 def merge_nc_files(group_list, out_path, base_name):
@@ -233,27 +264,28 @@ def merge_nc_files(group_list, out_path, base_name):
     """
     for iteration, group in enumerate(group_list):
 
-        full_output_path = out_path + "\\" + output_prefix + base_name + ("_" + str(iteration) + nc_file_ext)
+        full_output_path = out_path + "\\" + NC_OUTPUT_PREFIX + base_name + ("_" + str(iteration) + NC_FILE_EXT)
         output_id = nC.Dataset(full_output_path, "w", format="NETCDF4_CLASSIC")
 
         # calculate length of the merged time dimension
-        time_len = total_dimension_length(group, "time")
+        new_dim_len = total_dimension_length(group, NC_MERGE_DIMENSION)
 
         # open the first file to get list of vars and dims
         # create the destination dimensions, global atts, variables, and variable atts
         input_id = nC.Dataset(group[0], "r")
-        copy_dimensions(input_id, output_id, "time", time_len)
+        copy_dimensions(input_id, output_id, NC_MERGE_DIMENSION, new_dim_len)
         copy_attributes(input_id, output_id)
         input_var_list = [var for var in input_id.variables]
         for variable in input_var_list:
             var_dims = input_id.variables[variable].dimensions
             var_type = input_id.variables[variable].dtype
             shape = get_size_from_dims(input_id, var_dims, "", 0)
-            if len(var_dims) >= 3 and "time" in var_dims:
-                shape = get_size_from_dims(input_id, var_dims, "time", 300)
+            if len(var_dims) >= 3 and NC_MERGE_DIMENSION in var_dims:
+                shape = get_size_from_dims(input_id, var_dims, NC_MERGE_DIMENSION, min(new_dim_len, NC_MAX_CHUNK_TDIM))
             output_data = output_id.createVariable(str(variable), var_type, var_dims,
-                                                   compression='zlib', complevel=2, chunksizes=shape)
-            if "time" not in var_dims:
+                                                   compression='zlib', complevel=NC_COMPRESSION_SETTING,
+                                                   chunksizes=shape)
+            if NC_MERGE_DIMENSION not in var_dims:
                 if len(var_dims) > 0:
                     input_array = numpy.empty(shape, dtype=var_type)
                     input_array[:] = input_id.variables[variable][:]
@@ -264,19 +296,19 @@ def merge_nc_files(group_list, out_path, base_name):
         start_pos, end_pos = 0, 0
         for idx, file in enumerate(group):
             input_id = nC.Dataset(file, "r")
-            time_points = input_id.variables["time"].size
-            end_pos += time_points
+            merge_dim_points = input_id.variables[NC_MERGE_DIMENSION].size
+            end_pos += merge_dim_points
             for variable in input_var_list:
                 var_type = input_id.variables[variable].dtype
                 var_dims = input_id.variables[variable].dimensions
                 shape = get_size_from_dims(input_id, var_dims, "", 0)
                 output_data = output_id.variables[variable]
                 if "time_coverage_end" in variable:
-                    if idx == (len(group)-1):
+                    if idx == (len(group) - 1):
                         input_array = numpy.empty(shape, dtype=var_type)
                         input_array[:] = input_id.variables[variable][:]
                         output_data[:] = input_array
-                if "time" in var_dims:
+                if NC_MERGE_DIMENSION in var_dims:
                     input_array = numpy.empty(shape, dtype=var_type)
                     input_array[:] = input_id.variables[variable][:]
                     if len(var_dims) == 1:
@@ -286,7 +318,7 @@ def merge_nc_files(group_list, out_path, base_name):
                     elif len(var_dims) == 3:
                         output_data[start_pos:end_pos, :, :] = input_array
             input_id.close()
-            start_pos += time_points
+            start_pos += merge_dim_points
 
         output_id.close()
 
@@ -341,8 +373,8 @@ def copy_dimensions(input_nc, output_nc, override_dim, override_value):
     for dim in input_dims:
         if str(dim) == override_dim:
             output_nc.createDimension(str(dim), override_value)
-            continue
-        output_nc.createDimension(str(dim), len(input_nc.dimensions[dim]))
+        else:
+            output_nc.createDimension(str(dim), len(input_nc.dimensions[dim]))
 
 
 def copy_attributes(input_id, output_id):
@@ -351,15 +383,6 @@ def copy_attributes(input_id, output_id):
         if "_FillValue" in str(attr):
             continue
         output_id.setncattr(str(attr), input_id.getncattr(attr))
-
-
-def copy_variable(input_id, output_id, var):
-    var_dims = input_id.variables[var].dimensions
-    var_type = input_id.variables[var].dtype
-    output_data = output_id.createVariable(str(var), var_type, var_dims,
-                                           compression='zlib', complevel=9)
-    output_data[:] = input_id.variables[var][:]
-    copy_attributes(input_id.variables[var], output_id)
 
 
 def get_size_from_dims(data_id, dim_tuple, override_dim, override_val):
@@ -390,14 +413,14 @@ if __name__ == '__main__':
     if start_day < 0 or stop_day < 0:
         sys.exit()
 
-    for i_day in range(start_day, stop_day+1):
+    for i_day in range(start_day, stop_day + 1):
         date = datetime.date.today() - datetime.timedelta(days=i_day)
         folder_date_string = str(date.year) + str(date.month).zfill(2)
         sub_folder_date_string = folder_date_string + str(date.day).zfill(2)
 
         input_folder = data_path + "\\" + folder_date_string + "\\" + sub_folder_date_string
         output_folder = data_path + "\\" + folder_date_string
-        if valid_data_folder(input_folder) is False:
+        if is_valid_data_folder(input_folder) is False:
             continue
 
         process_list = create_merge_list(input_folder)
