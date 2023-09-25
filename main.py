@@ -15,25 +15,20 @@ NC_MAX_CHUNK_TDIM = 300
 NC_COMP_VAL = 2
 
 
-# todo 1: add and review all docstrings
-
-
 def is_valid_data_folder(path):
     """
-    check the input path contains valid MRR-Pro netcdf files:
-    1) checks the path exists
-    2) get list of all files in the path, and check they are valid files by calling valid_data_file()
+    check if the input path string contains valid MRR-Pro netcdf files.
 
     Parameters
     ----------
     path : string
-        Full path to a folder which we want to search for valid MRR-Pro files
+        Full path to a folder which we want to search for valid MRR-Pro files.
 
     Returns
     -------
     Boolean :
-        True    : folder PASSES checks: folder DOES contain valid MRR-Pro file(s)
-        False   : folder FAILS checks: folder DOES NOT contain valid MRR-Pro file(s)
+        True    : path contains valid MRR-Pro file(s)
+        False   : path does not contain valid MRR-Pro file(s)
     """
     if os.path.exists(path) is False:
         return False
@@ -47,7 +42,7 @@ def is_valid_data_folder(path):
 
 def is_valid_data_file(file):
     """
-    check the input file is a valid MRR-Pro netcdf:
+    check the input file string is a valid MRR-Pro netcdf file:
     1) checks the file exists
     2) checks the suffix is .nc
     3) checks the contents of the "title" global attribute in the file to see presence of "MRR-Pro"
@@ -88,14 +83,14 @@ def is_valid_data_file(file):
 
 def create_merge_list(path):
     """
-    Look at all the valid nc files in a given path....
+    Look at all the valid nc files in a given path string.
     Check which files can be merged based on dataset info (variable names, dtypes, units and dimensions)
     Return a nested list which groups together files which can be merged
 
     Parameters
     ----------
     path : string
-        string containing a path pointing to MRR-Pro data
+        string containing a path pointing to a folder contain MRR-Pro data file(s)
 
     Returns
     -------
@@ -126,8 +121,8 @@ def create_merge_list(path):
 
 def merge_test(base_file, ref_file):
     """
-    Check to see if the files are compatible for merging
-    The following are all checked and must pass check to be suitable for a merge:
+    Check to see if two files are compatible for merging
+    The following are all checked and must pass to be suitable for a merge:
         1) identical variable names listed in the fieldnames attributes
         2) identical dimension names and lengths (excluding the global NC_MERGE_DIMENSION)
         3) identical variables and variable attributes
@@ -180,8 +175,8 @@ def merge_test_global_attrs(base_nc_id, ref_nc_id):
     Returns
     -------
     result  : Boolean
-        True    : files ARE compatible (same field names in global attribute)
-        False   : files ARE NOT compatible (differing field names in global attribute)
+        True    : files ARE compatible
+        False   : files ARE NOT compatible
     """
     try:
         base_field_names = base_nc_id.getncattr(NC_ATT_FIELDNAMES)
@@ -195,7 +190,7 @@ def merge_test_global_attrs(base_nc_id, ref_nc_id):
 
 def merge_test_dims(base_nc_id, ref_nc_id):
     """
-    Check to see if the files have identical dimension names and lengths (excluding the length of the merged dimension)
+    Compare 2 netCDF files: check they have identical dimension names and lengths, excluding the merging (time) dim.
 
     Parameters
     ----------
@@ -207,8 +202,8 @@ def merge_test_dims(base_nc_id, ref_nc_id):
     Returns
     -------
     result  : Boolean
-        True    : dims ARE compatible
-        False   : dims ARE NOT compatible
+        True    : dims ARE identical
+        False   : dims ARE NOT identical
     """
     nc_dims_base = [dim for dim in base_nc_id.dimensions]
     nc_dims_ref = [dim for dim in ref_nc_id.dimensions]
@@ -227,7 +222,7 @@ def merge_test_dims(base_nc_id, ref_nc_id):
 
 def merge_test_var_attrs(base_nc_id, ref_nc_id):
     """
-    Check to see if the files have identical attributes for all variables
+    Check to see if 2 netCDF files have identical attributes for all data variables
 
     Parameters
     ----------
@@ -239,8 +234,8 @@ def merge_test_var_attrs(base_nc_id, ref_nc_id):
     Returns
     -------
     result  : Boolean
-        True    : vars ARE compatible
-        False   : vars ARE NOT compatible
+        True    : vars attributes for all vars ARE identical
+        False   : vars attributes for all vars ARE NOT identical
     """
     nc_vars_base = [var for var in base_nc_id.variables]
     nc_vars_ref = [var for var in ref_nc_id.variables]
@@ -274,8 +269,8 @@ def compare_var_attributes(data1_id, data2_id, var_name, att_list):
     Returns
     -------
     result  : Boolean
-        True    : all attributes present and identical values
-        False   : var attribute values ARE NOT identical or attributes are missing
+        True    : attributes ARE identical
+        False   : attributes ARE NOT identical or attributes are missing
     """
     if len(att_list) == 0:
         att_list = data1_id.variables[var_name].ncattrs()
@@ -304,7 +299,7 @@ def merge_nc_files(group_list, out_path, base_name):
     Merge all the files listed in the file list, including:
         Attributes: global and variables
         Dimensions:
-        Datasets:
+        Variables:
 
     Parameters
     ----------
@@ -379,6 +374,24 @@ def total_dimension_length(file_list, dimension):
 
 
 def create_merged_nc_using_ref(output_path, ref_path, merge_dim_len):
+    """
+    Create a new netCDF to contain merged data, create and initialise dims, atts and vars.
+    Can only initialise "static" vars, any vars with time varying data is copied elsewhere.
+
+    Parameters
+    ----------
+    output_path   : string
+        full path including filename for the merged output file
+    ref_path   : string
+        full path including filename for one of the input filenames which is used to model the output
+    merge_dim_len    : int
+        the new length of the merged (time) dimension, which is used to correctly define dimensions of merged vars
+
+    Returns
+    -------
+    output_id : netcdf if
+        a netcdf object reference to the output file
+    """
     # create the output file
     output_id = nC.Dataset(output_path, "w", format="NETCDF4_CLASSIC")
 
@@ -421,6 +434,20 @@ def copy_dimensions(input_nc, output_nc, override_dim, override_value):
 
 
 def copy_attributes(input_id, output_id):
+    """
+    Copies attributes from one input netCDF to an output netCDF
+
+    Parameters
+    ----------
+    input_id   : netCDF id
+        input which contains the original data. Can point to either root, for global atts, or a var for var atts
+    output_id   : netCDF id
+        destination to copy the new data into. Can point to either root, for global atts, or a var for var atts
+
+    Returns
+    -------
+    None
+    """
     input_attributes = input_id.ncattrs()
     for attr in input_attributes:
         if "_FillValue" in str(attr):
@@ -429,28 +456,65 @@ def copy_attributes(input_id, output_id):
 
 
 def copy_variables(f_in, f_out, override_dim, override_val):
+    """
+    Copies variables, (inc atts and also data where possible) from one input netCDF to an output netCDF
 
+    Parameters
+    ----------
+    f_in   : netCDF id
+        input which contains the original model data.
+    f_out   : netCDF id
+        destination to copy the new data into.
+    override_dim    :   string
+        specifies the name of the dimension which is merged/overridden
+    override_val    :   int
+        specifies the new length of the overriden/merged dimension
+
+    Returns
+    -------
+    None
+    """
     input_var_list = [var for var in f_in.variables]
 
     for var in input_var_list:
 
         var_dims = f_in.variables[var].dimensions
+        # when we have large 3-d vars, make assertions about the chunking
         if len(var_dims) >= 3 and override_dim in var_dims:
             chunks = get_size_from_dims(f_in, var, NC_MERGE_DIMENSION, min(override_val, NC_MAX_CHUNK_TDIM))
+        # for smaller arrays, use the default chunking
         else:
             chunks = get_size_from_dims(f_in, var, "", 0)
 
         f_out.createVariable(str(var), f_in.variables[var].dtype, var_dims,
                              compression='zlib', complevel=NC_COMP_VAL, chunksizes=chunks)
-
         copy_attributes(f_in.variables[var], f_out.variables[var])
-
+        # copy the data for the vars which are time invariant
         if NC_MERGE_DIMENSION not in var_dims:
             copy_data(f_out, f_in, var)
 
 
 def copy_data(f_out, f_in, var, start_pos=0, end_pos=0):
+    """
+    Copies data from one var in input file into another var in an output file
 
+    Parameters
+    ----------
+    f_out   : netCDF id
+        destination to copy the new data into.
+    f_in   : netCDF id
+        input which contains the original data.
+    var    :   string
+        name of the var of interest
+    start_pos    :   int
+        the starting index for specifying where merged arrays are to be stored in the output.
+    end_pos    :   int
+        the ending index for specifying where merged arrays are to be stored in the output.
+
+    Returns
+    -------
+    None
+    """
     input_shape = get_size_from_dims(f_in, var, "", 0)
     input_array = numpy.empty(input_shape, dtype=f_in.variables[var].dtype)
     input_array[:] = f_in.variables[var][:]
@@ -469,6 +533,26 @@ def copy_data(f_out, f_in, var, start_pos=0, end_pos=0):
 
 
 def get_size_from_dims(f_in, var, override_dim, override_val):
+    """
+    Calculates the "shape" of a var dataset
+    Named dimension can be overridden
+
+    Parameters
+    ----------
+    f_in   : netCDF id
+        input netcdf which contains the var dataset.
+    var : string
+        name of a netcdf var dataset
+    override_dim    :   string
+        specifies the name of the dimension which is merged/overridden
+    override_val    :   int
+        specifies the new length of the overriden/merged dimension
+
+    Returns
+    -------
+    chunk_list  :   list
+        list specifying shape of var dataset, after applying any dim overrides
+    """
     chunk_list = []
     dim_tuple = f_in.variables[var].dimensions
     if len(dim_tuple) == 0:
