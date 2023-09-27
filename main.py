@@ -5,7 +5,6 @@ import datetime
 import numpy
 from tqdm import tqdm
 from multiprocessing import Pool
-import time
 
 NC_FILE_EXT = ".nc"
 NC_OUTPUT_PREFIX = "MRRPro_"
@@ -569,10 +568,24 @@ def get_size_from_dims(f_in, var, override_dim, override_val):
     return chunk_list
 
 
-def f(x, y):
-    time.sleep(2)
-    print(x, y)
-    #return y
+def file_worker(folder):
+    """
+    Starts the merge process for a given data folder
+
+    Parameters
+    ----------
+    folder   : string
+        full path to a valid MRR data folder
+
+    Returns
+    -------
+    True    : folder merge SUCCESSFUL
+    False   : folder merge FAILED
+    """
+    output_folder, basename = os.path.split(folder)
+    merge_list = create_merge_list(folder)
+    merge_result = merge_nc_files(merge_list, output_folder, basename)
+    return merge_result
 
 
 if __name__ == '__main__':
@@ -593,41 +606,31 @@ if __name__ == '__main__':
     if start_day < 0 or stop_day < 0:
         sys.exit()
 
-    process_list, date_list = [], []
-
-    if N_CPU == 0:
-        n_proc = os.cpu_count()
-    elif isinstance(N_CPU, int):
-        n_proc = N_CPU
+    if isinstance(N_CPU, int):
+        if N_CPU <= 0:
+            n_proc = max(1, os.cpu_count()-2)
+        else:
+            n_proc = min(N_CPU, os.cpu_count()-2)
     else:
         sys.exit()
+
+    process_list = []
 
     for i_day in range(start_day, stop_day + 1):
         date = datetime.date.today() - datetime.timedelta(days=i_day)
         folder_date_string = str(date.year) + str(date.month).zfill(2)
-        sub_folder_date_string = folder_date_string + str(date.day).zfill(2)
-        input_folder = data_path + "\\" + folder_date_string + "\\" + sub_folder_date_string
+        input_folder = data_path + "\\" + folder_date_string + "\\" + folder_date_string + str(date.day).zfill(2)
         if is_valid_data_folder(input_folder):
             process_list.append(input_folder)
 
-    prog_days = tqdm(total=len(process_list), mininterval=0.5)
-
-    items = [(val, val * val) for val in range(50)]
-
-    print("Starting")
-    print(items)
     with Pool(processes=n_proc) as pool:
-        #for folder in process_list:
-            # print(pool.map(f, range(10)))
+        results = list(tqdm(pool.imap(file_worker, process_list), total=len(process_list)))
 
-        #print(pool.starmap(f, items, 2))
-        pool.starmap(f, items, n_proc)
-        #prog_days.update(1)
-
+    # Old code: this can be deleted once the multiprocessor version is tested on a large dataset
+    # prog_days = tqdm(total=len(process_list), mininterval=0.5)
     # for folder in process_list:
     #     output_folder, basename = os.path.split(folder)
     #     merge_list = create_merge_list(folder)
     #     merge_result = merge_nc_files(merge_list, output_folder, basename)
     #     prog_days.update(1)
-
-    prog_days.close()
+    # prog_days.close()
