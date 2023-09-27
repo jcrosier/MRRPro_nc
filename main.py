@@ -4,6 +4,8 @@ import sys
 import datetime
 import numpy
 from tqdm import tqdm
+from multiprocessing import Pool
+import time
 
 NC_FILE_EXT = ".nc"
 NC_OUTPUT_PREFIX = "MRRPro_"
@@ -13,6 +15,7 @@ NC_ATT_TITLE_VALUE = "METEK MRR Pro"
 NC_ATT_FIELDNAMES = "field_names"
 NC_MAX_CHUNK_TDIM = 300
 NC_COMP_VAL = 2
+N_CPU = 0
 
 
 def is_valid_data_folder(path):
@@ -566,6 +569,12 @@ def get_size_from_dims(f_in, var, override_dim, override_val):
     return chunk_list
 
 
+def f(x, y):
+    time.sleep(2)
+    print(x, y)
+    #return y
+
+
 if __name__ == '__main__':
 
     if len(sys.argv) < 4:
@@ -586,6 +595,13 @@ if __name__ == '__main__':
 
     process_list, date_list = [], []
 
+    if N_CPU == 0:
+        n_proc = os.cpu_count()
+    elif isinstance(N_CPU, int):
+        n_proc = N_CPU
+    else:
+        sys.exit()
+
     for i_day in range(start_day, stop_day + 1):
         date = datetime.date.today() - datetime.timedelta(days=i_day)
         folder_date_string = str(date.year) + str(date.month).zfill(2)
@@ -595,10 +611,23 @@ if __name__ == '__main__':
             process_list.append(input_folder)
 
     prog_days = tqdm(total=len(process_list), mininterval=0.5)
-    for folder in process_list:
-        output_folder, basename = os.path.split(folder)
-        merge_list = create_merge_list(folder)
-        merge_result = merge_nc_files(merge_list, output_folder, basename)
-        prog_days.update(1)
+
+    items = [(val, val * val) for val in range(50)]
+
+    print("Starting")
+    print(items)
+    with Pool(processes=n_proc) as pool:
+        #for folder in process_list:
+            # print(pool.map(f, range(10)))
+
+        #print(pool.starmap(f, items, 2))
+        pool.starmap(f, items, n_proc)
+        #prog_days.update(1)
+
+    # for folder in process_list:
+    #     output_folder, basename = os.path.split(folder)
+    #     merge_list = create_merge_list(folder)
+    #     merge_result = merge_nc_files(merge_list, output_folder, basename)
+    #     prog_days.update(1)
 
     prog_days.close()
