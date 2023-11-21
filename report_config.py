@@ -2,7 +2,10 @@ import os
 import sys
 import numpy as np
 import netCDF4 as nC
+import matplotlib.pyplot as plt
 from main import is_valid_data_file
+
+DEBUG = True
 
 N_DATA_VALS = 7
 DATA_Z_UNITS = 0
@@ -12,6 +15,8 @@ DATA_SPEC_N = 3
 DATA_RANG_N = 4
 DATA_TIME_DT = 5
 DATA_RANG_DR = 6
+
+# Todo Plotting routines need completing
 
 
 class NcFileProperties:
@@ -39,7 +44,7 @@ def read_nc_data(path, filename):
 def dir_check(path, folder_name, length):
 
     if os.path.isdir(path+'/'+folder_name) is False:
-        print(folder_name,"1")
+        print(folder_name, "1")
         return False
 
     if len(folder_name) != length:
@@ -73,14 +78,45 @@ def path_from_argv(arg_val):
     return path
 
 
+def plot_data(time, data):
+    # Need to properly format time
+    # Need to label axes
+    # Need to plot all vars
+    # Need to split data into time chunks if requested by user
+    # Need to save the images
+
+    ax1 = plt.subplot(311)
+    plt.plot(time, data[5], 'o')
+    min_val = 2**np.floor(np.log2(np.min(data[5])))
+    max_val = 2**np.ceil(np.log2(np.max(data[5])))
+    print(min_val, max_val)
+    print(np.mean(data[5]))
+    ax1.set_ylim(min_val, max_val)
+    # plt.tick_params('x', labelsize=6)
+
+    # share x only
+    # ax2 = plt.subplot(312, sharex=ax1)
+    # plt.plot(t, s2)
+    # make these tick labels invisible
+    # plt.tick_params('x', labelbottom=False)
+
+    # share x and y
+    # ax3 = plt.subplot(313, sharex=ax1, sharey=ax1)
+    # plt.plot(t, s3)
+    # plt.xlim(0.01, 5.0)
+    plt.show()
+
+
 if __name__ == "__main__":
 
-    # if len(sys.argv) < 2:
-    #     sys.exit()
-    # data_path = path_from_argv([1])
-    # if len(data_path) == 0:
-        #sys.exit()
-    data_path = 'C:/Users/jonny/Desktop/2022'
+    if DEBUG:
+        data_path = 'C:/Users/jonny/Desktop/2023'
+    else:
+        if len(sys.argv) < 2:
+            sys.exit()
+        data_path = path_from_argv([1])
+        if len(data_path) == 0:
+            sys.exit()
 
     mrr_folders = []
     data_array = np.empty((N_DATA_VALS, 0))
@@ -105,8 +141,4 @@ if __name__ == "__main__":
         data_array = np.concatenate((data_array, data_block), axis=1)
         time_array = np.concatenate((time_array, time_block), axis=0)
 
-    # todo Need to make some basic plots to show when settings are changing
-    # todo Output plots need some time resolution/interval so things can be seen
-    print(data_array[0, :])
-    print(data_array[1, :])
-    # Export results/plots
+    plot_data(time_array, data_array)
