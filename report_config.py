@@ -83,7 +83,8 @@ if __name__ == "__main__":
     data_path = 'C:/Users/jonny/Desktop/2022'
 
     mrr_folders = []
-    destination_array = np.empty((N_DATA_VALS, 0))
+    data_array = np.empty((N_DATA_VALS, 0))
+    time_array = np.empty(0)
 
     folders = sorted([folder for folder in os.listdir(data_path) if dir_check(data_path, folder, 6)])
     for folder in folders:
@@ -96,17 +97,16 @@ if __name__ == "__main__":
         current_path = data_path + sub_path
         file_list = sorted([file for file in os.listdir(current_path) if is_valid_data_file(current_path+'/'+file)])
         data_block = np.empty((N_DATA_VALS, len(file_list)))
+        time_block = np.empty(len(file_list))
         for i, file in enumerate(file_list):
             file_data = read_nc_data(current_path, file)
             data_block[:, i] = file_data.data[:]
-
-        # Copy buffer into destination array
-        # Todo: This does not properly copt the shape of the dest data into a continuous blaock
-        # Todo: Time stamp data from each file are passed into the file_data class, but not sued in any way. It is needed for all the diagnostics plots!
-        destination_array = np.hstack((destination_array, data_block))
-
-        print(destination_array)
+            time_block[i] = file_data.time
+        data_array = np.concatenate((data_array, data_block), axis=1)
+        time_array = np.concatenate((time_array, time_block), axis=0)
 
     # todo Need to make some basic plots to show when settings are changing
     # todo Output plots need some time resolution/interval so things can be seen
+    print(data_array[0, :])
+    print(data_array[1, :])
     # Export results/plots
