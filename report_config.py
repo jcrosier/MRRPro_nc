@@ -7,7 +7,8 @@ from main import is_valid_data_file
 
 DEBUG = True
 
-N_DATA_VALS = 7
+FIGURE_LABELS = ['Z-dBZ', 'R-Spec', 'Z-Spec', 'N-Spec', 'N-Rng', 'dt', 'dR']
+N_DATA_VALS = len(FIGURE_LABELS)
 DATA_Z_UNITS = 0
 DATA_SPEC_R = 1
 DATA_SPEC_Z = 2
@@ -16,22 +17,19 @@ DATA_RANG_N = 4
 DATA_TIME_DT = 5
 DATA_RANG_DR = 6
 
-# Todo Plotting routines need completing
-
-
 class NcFileProperties:
     def __init__(self, name, nc_id):
         self.file_name = name
-        self.time = nc_id.variables['time'][0]
+        self.time = int(nc_id.variables['time'][0])
         self.var_list = [var for var in nc_id.variables]
-        self.data = np.empty(7)
+        self.data = np.empty(7, dtype=np.int16)
         self.data[DATA_Z_UNITS] = 1 if nc_id.variables['Z'].getncattr('units') == "dBZ" else 0
         self.data[DATA_SPEC_R] = 1 if 'spectrum_raw' in self.var_list else 0
         self.data[DATA_SPEC_Z] = 1 if 'spectrum_reflectivity' in self.var_list else 0
         self.data[DATA_SPEC_N] = nc_id.dimensions['spectrum_n_samples'].size
         self.data[DATA_RANG_N] = nc_id.dimensions['range'].size
-        self.data[DATA_TIME_DT] = nc_id.variables['time'][1] - nc_id.variables['time'][0]
-        self.data[DATA_RANG_DR] = nc_id.variables['range'][1] - nc_id.variables['range'][0]
+        self.data[DATA_TIME_DT] = round(nc_id.variables['time'][1] - nc_id.variables['time'][0])
+        self.data[DATA_RANG_DR] = round(nc_id.variables['range'][1] - nc_id.variables['range'][0])
 
 
 def read_nc_data(path, filename):
@@ -79,31 +77,24 @@ def path_from_argv(arg_val):
 
 
 def plot_data(time, data):
-    # Need to properly format time
-    # Need to label axes
-    # Need to plot all vars
-    # Need to split data into time chunks if requested by user
-    # Need to save the images
 
-    ax1 = plt.subplot(311)
-    plt.plot(time, data[5], 'o')
-    min_val = 2**np.floor(np.log2(np.min(data[5])))
-    max_val = 2**np.ceil(np.log2(np.max(data[5])))
-    print(min_val, max_val)
-    print(np.mean(data[5]))
-    ax1.set_ylim(min_val, max_val)
-    # plt.tick_params('x', labelsize=6)
+    n_rows = data.shape[0]
+    for row in range(n_rows):
+        sub_plot_ref = (n_rows*100)+10+(row+1)
+        if row == 0:
+            ax1 = plt.subplot(sub_plot_ref)
+            ax1.set_ylabel(FIGURE_LABELS[row], fontsize=8, labelpad=10)
+        else:
+            ax = plt.subplot(sub_plot_ref, sharex=ax1)
+            ax.set_ylabel(FIGURE_LABELS[row], fontsize=8, labelpad=10)
+        if row < (n_rows-1):
+            plt.tick_params('x', labelbottom=False)
+        else:
+            plt.tick_params('x', labelsize=8)
+        plt.tick_params('y', labelsize=8)
+        plt.plot(time, data[row], 'o')
 
-    # share x only
-    # ax2 = plt.subplot(312, sharex=ax1)
-    # plt.plot(t, s2)
-    # make these tick labels invisible
-    # plt.tick_params('x', labelbottom=False)
-
-    # share x and y
-    # ax3 = plt.subplot(313, sharex=ax1, sharey=ax1)
-    # plt.plot(t, s3)
-    # plt.xlim(0.01, 5.0)
+    plt.suptitle('MRR-Pro config from netCDF Archive')
     plt.show()
 
 
@@ -119,8 +110,8 @@ if __name__ == "__main__":
             sys.exit()
 
     mrr_folders = []
-    data_array = np.empty((N_DATA_VALS, 0))
-    time_array = np.empty(0)
+    data_array = np.empty((N_DATA_VALS, 0), dtype=np.uint16)
+    time_array = np.empty(0, dtype='datetime64[s]')
 
     folders = sorted([folder for folder in os.listdir(data_path) if dir_check(data_path, folder, 6)])
     for folder in folders:
@@ -132,12 +123,12 @@ if __name__ == "__main__":
     for sub_path in mrr_folders:
         current_path = data_path + sub_path
         file_list = sorted([file for file in os.listdir(current_path) if is_valid_data_file(current_path+'/'+file)])
-        data_block = np.empty((N_DATA_VALS, len(file_list)))
-        time_block = np.empty(len(file_list))
+        data_block = np.empty((N_DATA_VALS, len(file_list)), dtype=np.uint16)
+        time_block = np.empty(len(file_list), dtype='datetime64[s]')
         for i, file in enumerate(file_list):
             file_data = read_nc_data(current_path, file)
             data_block[:, i] = file_data.data[:]
-            time_block[i] = file_data.time
+            time_block[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time, 's')
         data_array = np.concatenate((data_array, data_block), axis=1)
         time_array = np.concatenate((time_array, time_block), axis=0)
 
