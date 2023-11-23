@@ -4,8 +4,13 @@ import numpy as np
 import netCDF4 as nC
 import matplotlib.pyplot as plt
 from main import is_valid_data_file
+from tqdm import tqdm
 
-DEBUG = True
+DEBUG_OFF = 0
+DEBUG_HOME = 1
+DEBUG_LAPTOP = 2
+
+DEBUG = DEBUG_LAPTOP
 
 FIGURE_LABELS = ['Z-dBZ', 'R-Spec', 'Z-Spec', 'N-Spec', 'N-Rng', 'dt', 'dR']
 N_DATA_VALS = len(FIGURE_LABELS)
@@ -16,6 +21,7 @@ DATA_SPEC_N = 3
 DATA_RANG_N = 4
 DATA_TIME_DT = 5
 DATA_RANG_DR = 6
+
 
 class NcFileProperties:
     def __init__(self, name, nc_id):
@@ -42,7 +48,6 @@ def read_nc_data(path, filename):
 def dir_check(path, folder_name, length):
 
     if os.path.isdir(path+'/'+folder_name) is False:
-        print(folder_name, "1")
         return False
 
     if len(folder_name) != length:
@@ -76,31 +81,62 @@ def path_from_argv(arg_val):
     return path
 
 
-def plot_data(time, data):
+def plot_data(time_data, diagnostic_data, figure_path, sub_path):
 
-    n_rows = data.shape[0]
+    n_rows = diagnostic_data.shape[0]
+    plt.ion()
+    fig, axs = plt.subplots(n_rows, sharex=True)
+    fig.suptitle('MRR-Pro config from netCDF Archive: '+sub_path)
     for row in range(n_rows):
-        sub_plot_ref = (n_rows*100)+10+(row+1)
-        if row == 0:
-            ax1 = plt.subplot(sub_plot_ref)
-            ax1.set_ylabel(FIGURE_LABELS[row], fontsize=8, labelpad=10)
-        else:
-            ax = plt.subplot(sub_plot_ref, sharex=ax1)
-            ax.set_ylabel(FIGURE_LABELS[row], fontsize=8, labelpad=10)
+        axs[row].plot(time_data, diagnostic_data[row], 'o')
+        axs[row].set_ylabel(FIGURE_LABELS[row], fontsize=8, labelpad=10)
         if row < (n_rows-1):
-            plt.tick_params('x', labelbottom=False)
+            axs[row].tick_params('x', labelbottom=False)
         else:
-            plt.tick_params('x', labelsize=8)
-        plt.tick_params('y', labelsize=8)
-        plt.plot(time, data[row], 'o')
+            axs[row].tick_params('x', labelsize=8)
+    plt.show(block=False)
+    plt.savefig(figure_path + '/' + sub_path + '.png')
+    plt.close()
 
-    plt.suptitle('MRR-Pro config from netCDF Archive')
-    plt.show()
+
+def daily_data(path, out_path):
+    mrr_folders = []
+    # data_array = np.empty((N_DATA_VALS, 0), dtype=np.uint16)
+    # time_array = np.empty(0, dtype='datetime64[s]')
+
+    folders = sorted([folder for folder in os.listdir(path) if dir_check(path, folder, 6)])
+    for folder in folders:
+        try:
+            os.mkdir(out_path+'/'+folder)
+        except FileExistsError:
+            pass
+        current_path = os.path.join(path, folder)
+        sub_folders = [sub_folder for sub_folder in os.listdir(current_path) if dir_check(current_path, sub_folder, 8)]
+        sub_folders.sort()
+        mrr_folders.extend(['/' + folder + '/' + sub_folder for sub_folder in sub_folders])
+
+    num_folders = len(mrr_folders)
+    for j in tqdm(range(num_folders)):
+        sub_path = mrr_folders[j]
+        current_path = path + sub_path
+        file_list = sorted([file for file in os.listdir(current_path) if is_valid_data_file(current_path + '/' + file)])
+        data_block = np.empty((N_DATA_VALS, len(file_list)), dtype=np.uint16)
+        time_block = np.empty(len(file_list), dtype='datetime64[s]')
+        for i, file in enumerate(file_list):
+            file_data = read_nc_data(current_path, file)
+            data_block[:, i] = file_data.data[:]
+            time_block[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time, 's')
+        plot_data(time_block, data_block, out_path, sub_path)
+        # data_array = np.concatenate((data_array, data_block), axis=1)
+        # time_array = np.concatenate((time_array, time_block), axis=0)
+    # return data_array, time_array
 
 
 if __name__ == "__main__":
 
-    if DEBUG:
+    if DEBUG == DEBUG_LAPTOP:
+        data_path = 'C:/FirsData/MRR/MRR/MRRPro91'
+    elif DEBUG == DEBUG_HOME:
         data_path = 'C:/Users/jonny/Desktop/2023'
     else:
         if len(sys.argv) < 2:
@@ -109,27 +145,12 @@ if __name__ == "__main__":
         if len(data_path) == 0:
             sys.exit()
 
-    mrr_folders = []
-    data_array = np.empty((N_DATA_VALS, 0), dtype=np.uint16)
-    time_array = np.empty(0, dtype='datetime64[s]')
+    save_path = data_path + '/diagnostic_plots'
+    try:
+        os.mkdir(save_path)
+    except FileExistsError:
+        pass
+    else:
+        sys.exit()
 
-    folders = sorted([folder for folder in os.listdir(data_path) if dir_check(data_path, folder, 6)])
-    for folder in folders:
-        current_path = os.path.join(data_path, folder)
-        sub_folders = [sub_folder for sub_folder in os.listdir(current_path) if dir_check(current_path, sub_folder, 8)]
-        sub_folders.sort()
-        mrr_folders.extend(['/' + folder + '/' + sub_folder for sub_folder in sub_folders])
-
-    for sub_path in mrr_folders:
-        current_path = data_path + sub_path
-        file_list = sorted([file for file in os.listdir(current_path) if is_valid_data_file(current_path+'/'+file)])
-        data_block = np.empty((N_DATA_VALS, len(file_list)), dtype=np.uint16)
-        time_block = np.empty(len(file_list), dtype='datetime64[s]')
-        for i, file in enumerate(file_list):
-            file_data = read_nc_data(current_path, file)
-            data_block[:, i] = file_data.data[:]
-            time_block[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time, 's')
-        data_array = np.concatenate((data_array, data_block), axis=1)
-        time_array = np.concatenate((time_array, time_block), axis=0)
-
-    plot_data(time_array, data_array)
+    daily_data(data_path, save_path)
