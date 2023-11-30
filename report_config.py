@@ -1,26 +1,35 @@
 import os
 import sys
 import numpy as np
+import configparser
 import netCDF4 as nC
 import matplotlib.pyplot as plt
 from main import is_valid_data_file
 from tqdm import tqdm
 
-DEBUG_OFF = 0
-DEBUG_HOME = 1
-DEBUG_LAPTOP = 2
+CONFIG_FILENAME = './config.ini'
+CONFIG_PATHS = 'MRR_PATHS'
+CONFIG_INPUT_PATH = 'INPUT_PATH'
+CONFIG_OUTPUT_PATH = 'OUTPUT_PATH'
 
-DEBUG = DEBUG_LAPTOP
+PLOT_BASE_TITLE = 'MRR-Pro config from netCDF Archive: '
 
-FIGURE_LABELS = ['Z-dBZ', 'R-Spec', 'Z-Spec', 'N-Spec', 'N-Rng', 'dt', 'dR']
-N_DATA_VALS = len(FIGURE_LABELS)
-DATA_Z_UNITS = 0
-DATA_SPEC_R = 1
-DATA_SPEC_Z = 2
-DATA_SPEC_N = 3
-DATA_RANG_N = 4
-DATA_TIME_DT = 5
-DATA_RANG_DR = 6
+DATA_UNIT_CHECK = 0
+DATA_VAR_LIST_CHECK = 1
+DATA_DIM_SIZE = 2
+DATA_DELTA_VAL = 3
+
+DATA_FORMAT = {
+    'Z_UNITS': {'var': 'Z', 'type': DATA_UNIT_CHECK, 'label': 'Z-dBZ', 'row': 0, 'units': 'dBZ'},
+    'SPEC_R': {'var': 'spectrum_raw', 'type': DATA_VAR_LIST_CHECK, 'label': 'R-SPEC', 'row': 1, 'units': 'dBZ'},
+    'SPEC_Z': {'var': 'spectrum_reflectivity', 'type': DATA_VAR_LIST_CHECK, 'label': 'Z-SPEC', 'row': 2, 'units': 'dBZ'},
+    'SPEC_N': {'var': 'spectrum_n_samples', 'type': DATA_DIM_SIZE, 'label': 'N-SPEC', 'row': 3, 'units': 'dBZ'},
+    'RANG_N': {'var': 'range', 'type': DATA_DIM_SIZE, 'label': 'N-Rng', 'row': 4, 'units': 'dBZ'},
+    'TIME_DT': {'var': 'time', 'type': DATA_DELTA_VAL, 'label': 'dt', 'row': 5, 'units': 'dBZ'},
+    'RANG_DR': {'var': 'range', 'type': DATA_DELTA_VAL, 'label': 'dR', 'row': 6, 'units': 'dBZ'}
+}
+
+N_DATA_ROWS = len(DATA_FORMAT)
 
 
 class NcFileProperties:
@@ -28,17 +37,34 @@ class NcFileProperties:
         self.file_name = name
         self.time = int(nc_id.variables['time'][0])
         self.var_list = [var for var in nc_id.variables]
-        self.data = np.empty(7, dtype=np.int16)
-        self.data[DATA_Z_UNITS] = 1 if nc_id.variables['Z'].getncattr('units') == "dBZ" else 0
-        self.data[DATA_SPEC_R] = 1 if 'spectrum_raw' in self.var_list else 0
-        self.data[DATA_SPEC_Z] = 1 if 'spectrum_reflectivity' in self.var_list else 0
-        self.data[DATA_SPEC_N] = nc_id.dimensions['spectrum_n_samples'].size
-        self.data[DATA_RANG_N] = nc_id.dimensions['range'].size
-        self.data[DATA_TIME_DT] = round(nc_id.variables['time'][1] - nc_id.variables['time'][0])
-        self.data[DATA_RANG_DR] = round(nc_id.variables['range'][1] - nc_id.variables['range'][0])
+        self.data = np.empty(N_DATA_ROWS, dtype=np.int16)
+
+        for item in DATA_FORMAT:
+            var = DATA_FORMAT[item]['var']
+            units = DATA_FORMAT[item]['units']
+            row = DATA_FORMAT[item]['row']
+            method = DATA_FORMAT[item]['type']
+            self.data[row] = get_nc_diagnostic_vals(nc_id, var, units, self.var_list, method)
 
 
-def read_nc_data(path, filename):
+def get_nc_diagnostic_vals(file_id, var_name, unit_str, var_list, data_type):
+    if data_type == DATA_UNIT_CHECK:
+        if file_id.variables[var_name].getncattr('units') == unit_str:
+            return 1
+        else:
+            return 0
+    elif data_type == DATA_VAR_LIST_CHECK:
+        if var_name in var_list:
+            return 1
+        else:
+            return 0
+    elif data_type == DATA_DIM_SIZE:
+        return file_id.dimensions[var_name].size
+    elif data_type == DATA_DELTA_VAL:
+        return round(file_id.variables[var_name][1] - file_id.variables[var_name][0])
+
+
+def read_nc_diagnostics(path, filename):
     nc_id = nC.Dataset(path+'/'+filename, "r")
     file_info = NcFileProperties(filename, nc_id)
     nc_id.close()
@@ -49,10 +75,8 @@ def dir_check(path, folder_name, length):
 
     if os.path.isdir(path+'/'+folder_name) is False:
         return False
-
     if len(folder_name) != length:
         return False
-
     try:
         year_value = int(folder_name[0:4])
         month_value = int(folder_name[4:6])
@@ -69,28 +93,18 @@ def dir_check(path, folder_name, length):
         return False
 
 
-def path_from_argv(arg_val):
-    try:
-        path = str(arg_val)
-        if os.path.exists(path) is False:
-            return ""
-        if os.path.isdir(path) is False:
-            return ""
-    except ValueError:
-        return ""
-    return path
-
-
 def plot_data(time_data, diagnostic_data, figure_path, sub_path):
 
-    n_rows = diagnostic_data.shape[0]
     plt.ion()
-    fig, axs = plt.subplots(n_rows, sharex=True)
-    fig.suptitle('MRR-Pro config from netCDF Archive: '+sub_path)
-    for row in range(n_rows):
+    fig, axs = plt.subplots(N_DATA_ROWS, sharex=True)
+    fig.suptitle(PLOT_BASE_TITLE+sub_path)
+
+    for item in DATA_FORMAT:
+        row = DATA_FORMAT[item]['row']
+        label = DATA_FORMAT[item]['label']
         axs[row].plot(time_data, diagnostic_data[row], 'o')
-        axs[row].set_ylabel(FIGURE_LABELS[row], fontsize=8, labelpad=10)
-        if row < (n_rows-1):
+        axs[row].set_ylabel(label, fontsize=8, labelpad=10)
+        if row < (N_DATA_ROWS-1):
             axs[row].tick_params('x', labelbottom=False)
         else:
             axs[row].tick_params('x', labelsize=8)
@@ -120,10 +134,10 @@ def daily_data(path, out_path):
         sub_path = mrr_folders[j]
         current_path = path + sub_path
         file_list = sorted([file for file in os.listdir(current_path) if is_valid_data_file(current_path + '/' + file)])
-        data_block = np.empty((N_DATA_VALS, len(file_list)), dtype=np.uint16)
+        data_block = np.empty((N_DATA_ROWS, len(file_list)), dtype=np.uint16)
         time_block = np.empty(len(file_list), dtype='datetime64[s]')
         for i, file in enumerate(file_list):
-            file_data = read_nc_data(current_path, file)
+            file_data = read_nc_diagnostics(current_path, file)
             data_block[:, i] = file_data.data[:]
             time_block[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time, 's')
         plot_data(time_block, data_block, out_path, sub_path)
@@ -132,25 +146,28 @@ def daily_data(path, out_path):
     # return data_array, time_array
 
 
+def config_okay(config_data):
+    try:
+        if os.path.isdir(config_data[CONFIG_PATHS][CONFIG_INPUT_PATH]) is False:
+            return False
+        if os.path.isdir(config_data[CONFIG_PATHS][CONFIG_INPUT_PATH]) is False:
+            os.mkdir(config_data[CONFIG_PATHS][CONFIG_OUTPUT_PATH])
+    except KeyError:
+        return False
+    except FileNotFoundError:
+        return False
+    return True
+
+
 if __name__ == "__main__":
 
-    if DEBUG == DEBUG_LAPTOP:
-        data_path = 'C:/FirsData/MRR/MRR/MRRPro91'
-    elif DEBUG == DEBUG_HOME:
-        data_path = 'C:/Users/jonny/Desktop/2023'
-    else:
-        if len(sys.argv) < 2:
-            sys.exit()
-        data_path = path_from_argv([1])
-        if len(data_path) == 0:
-            sys.exit()
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILENAME)
 
-    save_path = data_path + '/diagnostic_plots'
-    try:
-        os.mkdir(save_path)
-    except FileExistsError:
-        pass
-    else:
+    if config_okay(config) is False:
         sys.exit()
+
+    data_path = config[CONFIG_PATHS][CONFIG_INPUT_PATH]
+    save_path = config[CONFIG_PATHS][CONFIG_OUTPUT_PATH]
 
     daily_data(data_path, save_path)
