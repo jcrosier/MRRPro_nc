@@ -3,24 +3,39 @@ import numpy
 import datetime
 import os
 import sys
+import configparser
+
+CONFIG_FILENAME = './config.ini'
+CONFIG_GROUP = 'REALTIME_NC'
+CONFIG_INPUT = 'INPUT_PATH'
+CONFIG_OUTPUT = 'OUTPUT_PATH'
+CONFIG_DT = "AVERAGE_INTERVAL_SECS"
+CONFIG_FIELDS = 'FIELD_NAMES'
+CONFIG_SCAN = 'SCAN_ARCHIVE'
+CONFIG_SCAN_N = 'SCAN_MAX'
 
 
-def get_latest_input(input_path_str):
-    path_str = get_folder_from_date(datetime.date.today(), input_path_str)
-    if os.path.exists(path_str):
-        file_list = [os.path.join(path_str, filename) for filename in os.listdir(path_str) if filename.endswith(".nc")]
-        if len(file_list) > 0:
-            latest_file = max(file_list, key=os.path.getctime)
-            return latest_file
+def get_latest_file(path_str):
+    if os.path.exists(path_str) is False:
+        return ""
+    file_list = [os.path.join(path_str, filename) for filename in os.listdir(path_str) if filename.endswith(".nc")]
+    if len(file_list) == 0:
+        return ""
+    return max(file_list, key=os.path.getctime)
 
-    path_str = get_folder_from_date(datetime.date.today() - datetime.timedelta(days=1), input_path_str)
-    if os.path.exists(path_str):
-        file_list = [os.path.join(path_str, filename) for filename in os.listdir(path_str) if filename.endswith(".nc")]
-        if len(file_list) > 0:
-            latest_file = max(file_list, key=os.path.getctime)
-            return latest_file
 
-    return ""
+def get_latest_input(input_path_str, scan, scan_num):
+    latest_file = ""
+    if scan:
+        ref_date = datetime.date.today()
+        for i in range(scan_num):
+            latest_file = get_latest_file(get_folder_from_date(ref_date, input_path_str))
+            if len(latest_file) > 0:
+                break
+            ref_date -= datetime.timedelta(days=1)
+    else:
+        latest_file = get_latest_file(input_path_str)
+    return latest_file
 
 
 def get_folder_from_date(date_input, path):
@@ -83,25 +98,52 @@ def get_dim_tuple(file_id, var):
     return len_list
 
 
+def config_okay(config_data):
+    try:
+        if os.path.isdir(config_data[CONFIG_INPUT]) is False:
+            return False
+        if os.path.isdir(config_data[CONFIG_OUTPUT]) is False:
+            os.mkdir(config_data[CONFIG_OUTPUT])
+        if len(config_data[CONFIG_FIELDS]) == 0:
+            return False
+        mean_val = int(config_data[CONFIG_DT])
+        if mean_val < 0 or mean_val > 1000:
+            return False
+        scan_val = int(config_data[CONFIG_SCAN_N])
+        if scan_val < 0 or scan_val > 1000:
+            return False
+        bool_val = config_data[CONFIG_SCAN]
+        if bool_val != "True" and bool_val != "False":
+            return False
+    except ValueError:
+        return False
+    except KeyError:
+        return False
+    except FileNotFoundError:
+        return False
+    return True
+
+
 if __name__ == '__main__':
 
-    if len(sys.argv) < 5:
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILENAME)
+    settings = config[CONFIG_GROUP]
+
+    if config_okay(settings) is False:
         sys.exit()
 
-    try:
-        field_name = str(sys.argv[1])
-        average_int_seconds = int(sys.argv[2])
-        input_path = str(sys.argv[3])
-        output_path = str(sys.argv[4])
+    field_names = settings[CONFIG_FIELDS].split(',')
+    file = get_latest_input(settings[CONFIG_INPUT], settings[CONFIG_SCAN], int(settings[CONFIG_SCAN_N]))
 
-    except ValueError:
+    if len(file) == 0:
         sys.exit()
 
-    file = get_latest_input(input_path)
-    if len(file) > 0:
-        date_string = os.path.basename(file)[2:8]
-        with nC.Dataset(file, "r", format="NETCDF4_CLASSIC") as input_id:
-            input_vars = [var for var in input_id.variables]
-            if field_name in input_vars:
-                with open(output_path, 'w') as output_id:
-                    export_data(input_id, output_id, field_name, date_string, average_int_seconds)
+    date_string = os.path.basename(file)[2:8]
+    with nC.Dataset(file, "r", format="NETCDF4_CLASSIC") as input_id:
+        input_vars = [var for var in input_id.variables]
+        for field in field_names:
+            if field not in input_vars:
+                continue
+            with open(settings[CONFIG_OUTPUT]+'_' + field + '.txt', 'w') as output_id:
+                export_data(input_id, output_id, field, date_string, int(settings[CONFIG_DT]))

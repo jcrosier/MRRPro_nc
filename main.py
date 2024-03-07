@@ -625,12 +625,3 @@ if __name__ == '__main__':
 
     with Pool(processes=n_proc) as pool:
         results = list(tqdm(pool.imap(file_worker, process_list), total=len(process_list)))
-
-    # Old code: this can be deleted once the multiprocessor version is tested on a large dataset
-    # prog_days = tqdm(total=len(process_list), mininterval=0.5)
-    # for folder in process_list:
-    #     output_folder, basename = os.path.split(folder)
-    #     merge_list = create_merge_list(folder)
-    #     merge_result = merge_nc_files(merge_list, output_folder, basename)
-    #     prog_days.update(1)
-    # prog_days.close()

@@ -10,7 +10,7 @@ from tqdm import tqdm
 CONFIG_FILENAME = './config.ini'
 CONFIG_PATHS = 'MRR_PATHS'
 CONFIG_INPUT_PATH = 'INPUT_PATH'
-CONFIG_OUTPUT_PATH = 'OUTPUT_PATH'
+CONFIG_OUTPUT_PATH = 'DIAG_PLOT_PATH'
 
 PLOT_BASE_TITLE = 'MRR-Pro config from netCDF Archive: '
 
@@ -93,7 +93,7 @@ def dir_check(path, folder_name, length):
         return False
 
 
-def plot_data(time_data, diagnostic_data, figure_path, sub_path):
+def plot_xy_data(x_data, y_data_list, figure_path, sub_path):
 
     plt.ion()
     fig, axs = plt.subplots(N_DATA_ROWS, sharex=True)
@@ -102,7 +102,7 @@ def plot_data(time_data, diagnostic_data, figure_path, sub_path):
     for item in DATA_FORMAT:
         row = DATA_FORMAT[item]['row']
         label = DATA_FORMAT[item]['label']
-        axs[row].plot(time_data, diagnostic_data[row], 'o')
+        axs[row].plot(x_data, y_data_list[row], 'o')
         axs[row].set_ylabel(label, fontsize=8, labelpad=10)
         if row < (N_DATA_ROWS-1):
             axs[row].tick_params('x', labelbottom=False)
@@ -140,7 +140,7 @@ def daily_data(path, out_path):
             file_data = read_nc_diagnostics(current_path, file)
             data_block[:, i] = file_data.data[:]
             time_block[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time, 's')
-        plot_data(time_block, data_block, out_path, sub_path)
+        plot_xy_data(time_block, data_block, out_path, sub_path)
         # data_array = np.concatenate((data_array, data_block), axis=1)
         # time_array = np.concatenate((time_array, time_block), axis=0)
     # return data_array, time_array
