@@ -35,7 +35,8 @@ N_DATA_ROWS = len(DATA_FORMAT)
 class NcFileProperties:
     def __init__(self, name, nc_id):
         self.file_name = name
-        self.time = int(nc_id.variables['time'][0])
+        self.time_start = int(nc_id.variables['time'][0])
+        self.time_end = int(nc_id.variables['time'][nc_id.dimensions['time'].size - 1])
         self.var_list = [var for var in nc_id.variables]
         self.data = np.empty(N_DATA_ROWS, dtype=np.int16)
 
@@ -61,7 +62,11 @@ def get_nc_diagnostic_vals(file_id, var_name, unit_str, var_list, data_type):
     elif data_type == DATA_DIM_SIZE:
         return file_id.dimensions[var_name].size
     elif data_type == DATA_DELTA_VAL:
-        return round(file_id.variables[var_name][1] - file_id.variables[var_name][0])
+        try:
+            delta_val = round(file_id.variables[var_name][1] - file_id.variables[var_name][0])
+        except IndexError:
+            delta_val = 0
+        return delta_val
 
 
 def read_nc_diagnostics(path, filename):
@@ -93,7 +98,7 @@ def dir_check(path, folder_name, length):
         return False
 
 
-def plot_xy_data(x_data, y_data_list, figure_path, sub_path):
+def plot_data(time_start, time_end, diagnostic_data, figure_path, sub_path):
 
     plt.ion()
     fig, axs = plt.subplots(N_DATA_ROWS, sharex=True)
@@ -102,7 +107,8 @@ def plot_xy_data(x_data, y_data_list, figure_path, sub_path):
     for item in DATA_FORMAT:
         row = DATA_FORMAT[item]['row']
         label = DATA_FORMAT[item]['label']
-        axs[row].plot(x_data, y_data_list[row], 'o')
+        axs[row].plot(time_start, diagnostic_data[row], 'rx')
+        axs[row].plot(time_end, diagnostic_data[row], 'b+')
         axs[row].set_ylabel(label, fontsize=8, labelpad=10)
         if row < (N_DATA_ROWS-1):
             axs[row].tick_params('x', labelbottom=False)
@@ -135,12 +141,14 @@ def daily_data(path, out_path):
         current_path = path + sub_path
         file_list = sorted([file for file in os.listdir(current_path) if is_valid_data_file(current_path + '/' + file)])
         data_block = np.empty((N_DATA_ROWS, len(file_list)), dtype=np.uint16)
-        time_block = np.empty(len(file_list), dtype='datetime64[s]')
+        start_times = np.empty(len(file_list), dtype='datetime64[s]')
+        end_times = np.empty(len(file_list), dtype='datetime64[s]')
         for i, file in enumerate(file_list):
             file_data = read_nc_diagnostics(current_path, file)
             data_block[:, i] = file_data.data[:]
-            time_block[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time, 's')
-        plot_xy_data(time_block, data_block, out_path, sub_path)
+            start_times[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time_start, 's')
+            end_times[i] = np.datetime64('1970-01-01') + np.timedelta64(file_data.time_end, 's')
+        plot_data(start_times, end_times, data_block, out_path, sub_path)
         # data_array = np.concatenate((data_array, data_block), axis=1)
         # time_array = np.concatenate((time_array, time_block), axis=0)
     # return data_array, time_array
