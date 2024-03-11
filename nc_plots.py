@@ -2,49 +2,39 @@ import os
 import netCDF4 as nC
 import matplotlib.pyplot as plt
 import numpy as np
-
-# todo
-# complete pcolor mesh plots to use z max/min and other formatting
-# add saftey checks to functions which create classes so we dont make plots with dead class vars
-# add loops to allow batch generation of plots
+from tqdm import tqdm
 
 
 class NcVariable:
-    def __init__(self, file_ref, var_name, transpose=False, expand=0, offset=False):
-        self.name = ''
-        self.units = ''
-        self.data, self.dataT = np.zeros(0), np.zeros(0)
-        self.valid = False
-
-        self.initialise_var(file_ref, var_name)
-        if self.valid:
-            self.load_data(file_ref, var_name, transpose)
+    def __init__(self, file_ref, var_name, expand=0, offset=False, t_format="hour"):
+        try:
+            self.valid = False
+            self.name = file_ref.variables[var_name].name
+            self.units = file_ref.variables[var_name].units
+            self.data = file_ref.variables[var_name][:]
+            if self.name == 'time':
+                self.format_time(t_format)
             if expand > 0:
                 self.expand_1d_np_array(expand)
             if offset:
                 self.offset_1d_values()
-
-    def initialise_var(self, file_id, var):
-        try:
-            self.name = file_id.variables[var].name
-            self.units = file_id.variables[var].units
-        except (NameError, KeyError, AttributeError):
-            self.valid = False
+        except NameError:
+            print(f'Error! File ref found.')
+        except KeyError:
+            print(f'Error! Variable not found: {var_name}')
+        except AttributeError:
+            print(f'Error! Attribute name or units not found for Variable: {var_name}')
         else:
             self.valid = True
 
-    def load_data(self, file_id, var, tran=False):
-        try:
-            self.data = file_id.variables[var][:]
-            if self.name == 'time':
-                t0 = np.mod(self.data[0], 86400)
-                self.data = np.round((self.data - self.data[0]) + t0) / 3600
-                self.units = 'hour of day'
-        except (NameError, KeyError, AttributeError):
-            self.valid = False
-        else:
-            self.dataT = self.data.T if tran else np.zeros(0)
-            self.valid = True
+    def format_time(self, time_format):
+        if time_format == 'hour':
+            self.data = np.round((self.data - self.data[0]) + np.mod(self.data[0], 86400)) / 3600
+            self.units = 'hour of day'
+        elif time_format == 'seconds':
+            self.data = np.round((self.data - self.data[0]) + np.mod(self.data[0], 86400))
+            self.units = 'seconds since midnight'
+        # flexibility to add other elif's if required to allow other time formats to be shown
 
     def expand_1d_np_array(self, num_points):
         last_index = len(self.data) - 1
@@ -58,36 +48,49 @@ class NcVariable:
         self.data -= offset
 
 
-def plot_2d_data(file, var, z_range):
-    nc_id = nC.Dataset(file, 'r')
-    # add checks to see if x_data.valid, y_data.valid etc are all true
-    x_data = NcVariable(nc_id, nc_id.variables[var].dimensions[0], expand=1, offset=False)
-    y_data = NcVariable(nc_id, nc_id.variables[var].dimensions[1], expand=1, offset=True)
-    z_data = NcVariable(nc_id, var, transpose=True)
-    nc_id.close()
-
-    display_2d(x_data, y_data, z_data, z_range, file)
-
-
-def display_2d(x, y, z, z_min_max, file):
+def display_2d(x, y, z, file, z_min_max, show=False):
     plt.title(os.path.basename(file))
     plt.xlabel(x.name + ' (' + x.units + ')')
     plt.ylabel(y.name + ' (' + y.units + ')')
-
-    im = plt.pcolormesh(x.data, y.data, z.dataT)
-                        #, cmap=cmap, norm=norm)
-
-    #im = plt.imshow(z.dataT, interpolation='None', aspect='auto', origin='lower', vmin=z_min_max[0], vmax=z_min_max[1],
-    #                extent=(x.min, x.max, y.min, y.max))
+    if z_min_max[0]:
+        im = plt.pcolormesh(x.data, y.data, z.data.T, vmin=z_min_max[1], vmax=z_min_max[2], cmap='turbo')
+    else:
+        im = plt.pcolormesh(x.data, y.data, z.data.T, cmap='turbo')
     cbar = plt.colorbar(im)
     cbar.set_label(z.name + ' (' + z.units + ')')
-    plt.show(block=False)
-    plt.savefig(os.path.splitext(file)[0] + '.png')
+    if show:
+        plt.show(block=False)
+    plt.savefig(os.path.splitext(file)[0] + '.jpg')
     plt.close()
 
+
+def plot_2d_data(file_list, var, z_range, display=False):
+
+    for j in tqdm(range(len(file_list))):
+
+        try:
+            nc_id = nC.Dataset(file_list[j], 'r')
+            x_data = NcVariable(nc_id, nc_id.variables[var].dimensions[0], expand=1, offset=False)
+            y_data = NcVariable(nc_id, nc_id.variables[var].dimensions[1], expand=1, offset=True)
+            z_data = NcVariable(nc_id, var)
+        except FileNotFoundError:
+            print(f'Error! File not found: {file_list[j]}')
+        except OSError:
+            print(f'Error! Not a valid netCDF file: {file_list[j]}')
+        except KeyError:
+            print(f'Error! Invalid key for File: {file_list[j]}')
+        else:
+            nc_id.close()
+            if x_data.valid and y_data.valid and z_data.valid:
+                display_2d(x_data, y_data, z_data, file_list[j], z_range, display)
+            else:
+                print(f'Errors encountered! See prior message(s) for info. File: {file_list[j]}')
+
+
 # JC laptop test
-path = 'C:/FirsData/MRR/MRR/MRRPro91/PROC_new/MRRPro_20230612_0.nc'
+# path = 'C:/FirsData/MRR/MRR/MRRPro91/PROC_new/MRRPro_20230612_0.nc'
 
 # JC home PC test
-#path = 'C:/Users/jonny/Desktop/Data/MRR/202303/20230305/20230305_222000.nc'
-plot_2d_data(path, 'Ze', [-10, 30])
+path = 'C:/Users/jonny/Desktop/Data/MRR/202303/20230305/'
+files = [path + file for file in os.listdir(path) if file.endswith('.nc')]
+plot_2d_data(files, 'Ze', [True, -10, 30])
