@@ -1,86 +1,16 @@
 import os
 import netCDF4 as nC
-import sys
-import datetime
 import numpy
 from tqdm import tqdm
 from multiprocessing import Pool
+import mrr_finder
 
 NC_FILE_EXT = ".nc"
 NC_OUTPUT_PREFIX = "MRRPro_"
 NC_MERGE_DIMENSION = "time"
-NC_ATT_TITLE_NAME = "title"
-NC_ATT_TITLE_VALUE = "METEK MRR Pro"
 NC_ATT_FIELDNAMES = "field_names"
 NC_MAX_CHUNK_TDIM = 300
 NC_COMP_VAL = 2
-N_CPU = 0
-
-
-def is_valid_data_folder(path):
-    """
-    check if the input path string contains valid MRR-Pro netcdf files.
-
-    Parameters
-    ----------
-    path : string
-        Full path to a folder which we want to search for valid MRR-Pro files.
-
-    Returns
-    -------
-    Boolean :
-        True    : path contains valid MRR-Pro file(s)
-        False   : path does not contain valid MRR-Pro file(s)
-    """
-    if os.path.exists(path) is False:
-        return False
-    else:
-        file_list = os.listdir(path)
-        for file in file_list:
-            if is_valid_data_file(os.path.join(path, file)):
-                return True
-        return False
-
-
-def is_valid_data_file(file):
-    """
-    check the input file string is a valid MRR-Pro netcdf file:
-    1) checks the file exists
-    2) checks the suffix is .nc
-    3) checks the contents of the "title" global attribute in the file to see presence of "MRR-Pro"
-
-    Parameters
-    ----------
-    file : string
-        full path to an individual file
-
-    Returns
-    -------
-        True    : file PASSES checks: file IS a valid MRR-Pro file
-        False   : file FAILS checks: file IS NOT a valid MRR-Pro file
-    """
-    if os.path.exists(file) is False:
-        return False
-
-    if file.endswith(NC_FILE_EXT) is False:
-        return False
-
-    try:
-        nc_file = nC.Dataset(file, "r")
-    except OSError:
-        return False
-
-    try:
-        attribute_title = getattr(nc_file, NC_ATT_TITLE_NAME)
-        nc_file.close()
-    except AttributeError:
-        nc_file.close()
-        return False
-
-    if NC_ATT_TITLE_VALUE in attribute_title:
-        return True
-    else:
-        return False
 
 
 def create_merge_list(path):
@@ -100,7 +30,7 @@ def create_merge_list(path):
         a list of lists, each sublist contains a list of files which can be merged
     """
 
-    nc_file_list = [file for file in os.listdir(path) if is_valid_data_file(os.path.join(path, file))]
+    nc_file_list = [file for file in os.listdir(path) if mrr_finder.is_valid_data_file(os.path.join(path, file))]
     number_of_nc_files = len(nc_file_list)
 
     master_merge_list, current_merge_list = [], []
@@ -568,7 +498,7 @@ def get_size_from_dims(f_in, var, override_dim, override_val):
     return chunk_list
 
 
-def file_worker(folder):
+def mrr_merge_folder(folder):
     """
     Starts the merge process for a given data folder
 
@@ -588,40 +518,8 @@ def file_worker(folder):
     return merge_result
 
 
-if __name__ == '__main__':
-
-    if len(sys.argv) < 4:
-        sys.exit()
-
-    try:
-        data_path = str(sys.argv[1])
-        start_day = int(sys.argv[2])
-        stop_day = int(sys.argv[3])
-    except ValueError:
-        sys.exit()
-
-    if not os.path.exists(data_path):
-        sys.exit()
-
-    if start_day < 0 or stop_day < 0:
-        sys.exit()
-
-    if isinstance(N_CPU, int):
-        if N_CPU <= 0:
-            n_proc = max(1, os.cpu_count()-2)
-        else:
-            n_proc = min(N_CPU, os.cpu_count()-2)
-    else:
-        sys.exit()
-
-    process_list = []
-
-    for i_day in range(start_day, stop_day + 1):
-        date = datetime.date.today() - datetime.timedelta(days=i_day)
-        folder_date_string = str(date.year) + str(date.month).zfill(2)
-        input_folder = data_path + "\\" + folder_date_string + "\\" + folder_date_string + str(date.day).zfill(2)
-        if is_valid_data_folder(input_folder):
-            process_list.append(input_folder)
-
-    with Pool(processes=n_proc) as pool:
-        results = list(tqdm(pool.imap(file_worker, process_list), total=len(process_list)))
+def mrr_merge_list(folders, n_cpu=os.cpu_count()):
+    n_procs = mrr_finder.cpu_checker(n_cpu)
+    with Pool(processes=n_procs) as pool:
+        results = list(tqdm(pool.imap(mrr_merge_folder, folders), total=len(folders)))
+    return results

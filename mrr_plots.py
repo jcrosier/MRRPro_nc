@@ -7,8 +7,8 @@ from tqdm import tqdm
 
 class NcVariable:
     def __init__(self, file_ref, var_name, expand=0, offset=False, t_format="hour"):
+        self.valid = False
         try:
-            self.valid = False
             self.name = file_ref.variables[var_name].name
             self.units = file_ref.variables[var_name].units
             self.data = file_ref.variables[var_name][:]
@@ -50,6 +50,7 @@ class NcVariable:
 
 def display_2d(x, y, z, file, z_min_max, show=False):
     plt.title(os.path.basename(file))
+    plt.subplots(figsize=(12, 4))
     plt.xlabel(x.name + ' (' + x.units + ')')
     plt.ylabel(y.name + ' (' + y.units + ')')
     if z_min_max[0]:
@@ -60,18 +61,20 @@ def display_2d(x, y, z, file, z_min_max, show=False):
     cbar.set_label(z.name + ' (' + z.units + ')')
     if show:
         plt.show(block=False)
-    plt.savefig(os.path.splitext(file)[0] + '.jpg')
+    plt.savefig(os.path.splitext(file)[0] + '_' + z.name + '.jpg', dpi=250)
     plt.close()
 
 
-def plot_2d_data(file_list, var, z_range, display=False):
-
+def plot_2d_data(file_list, var, z_range, display=False, offset_x=False, offset_y=False):
     for j in tqdm(range(len(file_list))):
-
         try:
             nc_id = nC.Dataset(file_list[j], 'r')
-            x_data = NcVariable(nc_id, nc_id.variables[var].dimensions[0], expand=1, offset=False)
-            y_data = NcVariable(nc_id, nc_id.variables[var].dimensions[1], expand=1, offset=True)
+            if len(nc_id.variables[var].dimensions) != 2:
+                print(f'Error! Variable {var} does not have correct dims for 2D plot in file: {file_list[j]}')
+                nc_id.close()
+                break
+            x_data = NcVariable(nc_id, nc_id.variables[var].dimensions[0], expand=1, offset=offset_x)
+            y_data = NcVariable(nc_id, nc_id.variables[var].dimensions[1], expand=1, offset=offset_y)
             z_data = NcVariable(nc_id, var)
         except FileNotFoundError:
             print(f'Error! File not found: {file_list[j]}')
@@ -85,12 +88,3 @@ def plot_2d_data(file_list, var, z_range, display=False):
                 display_2d(x_data, y_data, z_data, file_list[j], z_range, display)
             else:
                 print(f'Errors encountered! See prior message(s) for info. File: {file_list[j]}')
-
-
-# JC laptop test
-# path = 'C:/FirsData/MRR/MRR/MRRPro91/PROC_new/MRRPro_20230612_0.nc'
-
-# JC home PC test
-path = 'C:/Users/jonny/Desktop/Data/MRR/202303/20230305/'
-files = [path + file for file in os.listdir(path) if file.endswith('.nc')]
-plot_2d_data(files, 'Ze', [True, -10, 30])
