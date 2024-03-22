@@ -4,7 +4,7 @@ import numpy as np
 import configparser
 import netCDF4 as nC
 import matplotlib.pyplot as plt
-from main import is_valid_data_file
+from mrr_finder import is_valid_data_file
 from tqdm import tqdm
 
 CONFIG_FILENAME = './config.ini'

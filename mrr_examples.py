@@ -12,7 +12,7 @@ mrr_plots.plot_2d_data(file_list, 'Ze', [True, -10, 30], offset_y=True)
 result = mrr_nc_merger.mrr_merge_folder('./data/2023/202303/20230322/')
 
 # Example: Get a list of all sub-folders containing MRR files (e.g. all days in March 2023)
-#folder_list = mrr_finder.folders_in_path('./data/2023/202303/')
+folder_list = mrr_finder.folders_in_path('./data/2023/202303/')
 
 # Example: Multithread merge all MRR nc files for each sub-folder in a list of folders
-#list_result = mrr_nc_merger.mrr_merge_list(folder_list, n_cpu=6)
+list_result = mrr_nc_merger.mrr_merge_list(folder_list, n_cpu=6)
