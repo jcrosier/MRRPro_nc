@@ -6,47 +6,25 @@ NC_ATT_TITLE_NAME = "title"
 NC_ATT_TITLE_VALUE = "METEK MRR Pro"
 
 
-def is_valid_data_folder(path):
+def is_valid_data_folder(path: str) -> bool:
     """
-    check if the input path string contains valid MRR-Pro netcdf files.
-
-    Parameters
-    ----------
-    path : string
-        Full path to a folder which we want to search for valid MRR-Pro files.
-
-    Returns
-    -------
-    Boolean :
-        True    : path contains valid MRR-Pro file(s)
-        False   : path does not contain valid MRR-Pro file(s)
+    Check if the input path string contains valid MRR-Pro netcdf files.
     """
-    if os.path.exists(path) is False:
-        return False
-    else:
-        file_list = os.listdir(path)
-        for file in file_list:
-            if is_valid_data_file(os.path.join(path, file)):
-                return True
+    if os.path.isdir(path) is False:
         return False
 
+    file_list = [file for file in os.listdir(path) if file.endswith(NC_FILE_EXT)]
 
-def is_valid_data_file(file):
+    for file in file_list:
+        if is_valid_data_file(os.path.join(path, file)):
+            return True
+
+    return False
+
+
+def is_valid_data_file(file: str) -> bool:
     """
     check the input file string is a valid MRR-Pro netcdf file:
-    1) checks the file exists
-    2) checks the suffix is .nc
-    3) checks the contents of the "title" global attribute in the file to see presence of "MRR-Pro"
-
-    Parameters
-    ----------
-    file : string
-        full path to an individual file
-
-    Returns
-    -------
-        True    : file PASSES checks: file IS a valid MRR-Pro file
-        False   : file FAILS checks: file IS NOT a valid MRR-Pro file
     """
     if os.path.exists(file) is False:
         return False
@@ -54,40 +32,57 @@ def is_valid_data_file(file):
     if file.endswith(NC_FILE_EXT) is False:
         return False
 
+    if is_valid_mrr_nc(file) is False:
+        return False
+
+    return True
+
+
+def is_valid_mrr_nc(file: str) -> bool:
+    """
+    check if a nc data file can be opened with nc lib and contains valid attribute/metadata
+    """
     try:
         nc_file = nC.Dataset(file, "r")
     except OSError:
         return False
 
     try:
-        attribute_title = getattr(nc_file, NC_ATT_TITLE_NAME)
+        title_data = getattr(nc_file, NC_ATT_TITLE_NAME)
         nc_file.close()
     except AttributeError:
         nc_file.close()
         return False
 
-    if NC_ATT_TITLE_VALUE in attribute_title:
-        return True
-    else:
-        return False
+    return NC_ATT_TITLE_VALUE in title_data
 
 
-def cpu_checker(n_cpu=0):
-    if isinstance(n_cpu, int):
-        if n_cpu == 0:
+def files_in_path(path: str) -> list[str]:
+    """
+    create a list of all valid MRR-Pri nc files in a given path
+    """
+    return [path + file for file in os.listdir(path) if is_valid_data_file(path + file)]
+
+
+def folders_in_path(path: str) -> list[str]:
+    """
+    create a list of all 'MRR-Pro data containing' subdirectories in a given path
+    """
+    return [path + folder for folder in os.listdir(path) if is_valid_data_folder(path + folder)]
+
+
+def cpu_checker(cpu_request: int = 0) -> int:
+    """
+    Obtain number of available for use.
+    cpu_request == 0: obtain max possible cpus from OS
+    cpu_request < 0: obtain the max number from the OS, but keep some cpu in reserve
+    cpu_request > 0: obtain a specific number, checking upper limits from the OS
+    """
+    if isinstance(cpu_request, int):
+        if cpu_request == 0:
             return os.cpu_count()
-        if n_cpu < 0:
-            return max(os.cpu_count() + n_cpu, 1)
-        if n_cpu > 0:
-            return min(os.cpu_count(), n_cpu)
+        if cpu_request < 0:
+            return max(os.cpu_count() + cpu_request, 1)
+        if cpu_request > 0:
+            return min(os.cpu_count(), cpu_request)
     return os.cpu_count()
-
-
-def files_in_path(path):
-    files = [path + file for file in os.listdir(path) if is_valid_data_file(path + file)]
-    return files
-
-
-def folders_in_path(path):
-    folders = [path + folder for folder in os.listdir(path) if is_valid_data_folder(path + folder)]
-    return folders
