@@ -59,7 +59,7 @@ def is_valid_mrr_nc(file: str) -> bool:
 
 def files_in_path(path: str) -> list[str]:
     """
-    create a list of all valid MRR-Pri nc files in a given path
+    create a list of all valid MRR-Pro nc files in a given path
     """
     return [path + file for file in os.listdir(path) if is_valid_data_file(path + file)]
 
