@@ -7,9 +7,7 @@ NC_ATT_TITLE_VALUE = "METEK MRR Pro"
 
 
 def is_valid_data_folder(path: str) -> bool:
-    """
-    Check if the input path string contains valid MRR-Pro netcdf files.
-    """
+    """ Check if the input path string contains valid MRR-Pro netcdf files. """
     if os.path.isdir(path) is False:
         return False
 
@@ -23,9 +21,7 @@ def is_valid_data_folder(path: str) -> bool:
 
 
 def is_valid_data_file(file: str) -> bool:
-    """
-    check the input file string is a valid MRR-Pro netcdf file:
-    """
+    """ Check the input file string is a valid MRR-Pro netcdf file. """
     if os.path.exists(file) is False:
         return False
 
@@ -39,9 +35,7 @@ def is_valid_data_file(file: str) -> bool:
 
 
 def is_valid_mrr_nc(file: str) -> bool:
-    """
-    check if a nc data file can be opened with nc lib and contains valid attribute/metadata
-    """
+    """ Check if a nc data file can be opened with nc lib and contains valid attribute/metadata. """
     try:
         nc_file = nC.Dataset(file, "r")
     except OSError:
@@ -58,26 +52,20 @@ def is_valid_mrr_nc(file: str) -> bool:
 
 
 def files_in_path(path: str) -> list[str]:
-    """
-    create a list of all valid MRR-Pro nc files in a given path
-    """
+    """ Create a list of all valid MRR-Pro nc files in a given path. """
     return [path + file for file in os.listdir(path) if is_valid_data_file(path + file)]
 
 
 def folders_in_path(path: str) -> list[str]:
-    """
-    create a list of all 'MRR-Pro data containing' subdirectories in a given path
-    """
+    """ Create a list of all 'MRR-Pro data containing' subdirectories in a given path. """
     return [path + folder for folder in os.listdir(path) if is_valid_data_folder(path + folder)]
 
 
 def cpu_checker(cpu_request: int = 0) -> int:
-    """
-    Obtain number of available for use.
+    """ Obtain number of CPU's available for use.
     cpu_request == 0: obtain max possible cpus from OS
     cpu_request < 0: obtain the max number from the OS, but keep some cpu in reserve
-    cpu_request > 0: obtain a specific number, checking upper limits from the OS
-    """
+    cpu_request > 0: obtain a specific number, checking upper limits from the OS """
     if isinstance(cpu_request, int):
         if cpu_request == 0:
             return os.cpu_count()
