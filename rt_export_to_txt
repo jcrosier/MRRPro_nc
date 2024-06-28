@@ -60,10 +60,7 @@ def output_numpy_slice_to_text(f_out: TextIO, data: numpy.ndarray):
         if j < num_vals:
             f_out.write(",")
     f_out.write("\r")
-        
-
-
-        
+              
 
 def load_var(nc_id: nC.Dataset, var: str) -> numpy.ndarray:
     """ Load an entire var into a numpy array. """
