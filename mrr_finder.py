@@ -53,11 +53,13 @@ def is_valid_mrr_nc(file: str) -> bool:
 
 def files_in_path(path: str) -> list[str]:
     """ Create a list of all valid MRR-Pro nc files in a given path. """
+    if os.path.exists(path) is False: return []
     return [path + file for file in os.listdir(path) if is_valid_data_file(path + file)]
 
 
 def folders_in_path(path: str) -> list[str]:
     """ Create a list of all 'MRR-Pro data containing' subdirectories in a given path. """
+    if os.path.exists(path) is False: return []
     return [path + folder for folder in os.listdir(path) if is_valid_data_folder(path + folder)]
 
 
